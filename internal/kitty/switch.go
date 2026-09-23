@@ -1,0 +1,165 @@
+package kitty
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"unicode"
+)
+
+func paint(color uint32, value string) string {
+	return fmt.Sprintf("\x1b[38;2;%d;%d;%dm%s\x1b[0m", color>>16, (color>>8)&255, color&255, Clean(value))
+}
+
+func processName(w Window) string {
+	for i := len(w.Foreground) - 1; i >= 0; i-- {
+		cmd := w.Foreground[i].Cmdline
+		if len(cmd) == 0 {
+			continue
+		}
+		name := strings.TrimLeft(filepath.Base(cmd[0]), "-")
+		if name == "fzf" || name == "kt" {
+			continue
+		}
+		if (name == "nvim" || name == "claude") && w.Title != "" {
+			return w.Title
+		}
+		return name
+	}
+	if len(w.Cmdline) > 0 {
+		return strings.TrimLeft(filepath.Base(w.Cmdline[0]), "-")
+	}
+	if w.Title != "" {
+		return w.Title
+	}
+	return "process"
+}
+
+func Rows(windows []OSWindow, self WindowID) []string {
+	var rows []string
+	roots := make(map[string]string)
+	projectRoot := func(cwd string) string {
+		if root, ok := roots[cwd]; ok {
+			return root
+		}
+		root := ProjectRoot(cwd)
+		roots[cwd] = root
+		return root
+	}
+	for _, osw := range windows {
+		var body []string
+		var projects []string
+		seen := map[string]bool{}
+		var first WindowID
+		for _, tab := range osw.Tabs {
+			var panes []Window
+			project := ""
+			for _, w := range tab.Windows {
+				if w.ID == self {
+					continue
+				}
+				panes = append(panes, w)
+				root := projectRoot(w.Cwd)
+				if root != "" && (project == "" || w.Active || w.Focused) {
+					project = filepath.Base(root)
+				}
+			}
+			if len(panes) == 0 {
+				continue
+			}
+			title := ReadTask(tab.ID)
+			color := Color(title)
+			if title == "" {
+				title = tab.Title
+				color = 0x6ea8fe
+				if project != "" {
+					title = "[" + project + "]"
+					color = Color(project)
+				}
+			}
+			if title == "" {
+				title = "Tab"
+			}
+			if strings.HasPrefix(title, "[") {
+				p, _, ok := strings.Cut(strings.TrimPrefix(title, "["), "]")
+				if ok && p != "" && !seen[p] {
+					projects = append(projects, p)
+					seen[p] = true
+				}
+			}
+			if first == 0 {
+				first = panes[0].ID
+			}
+			body = append(body, fmt.Sprintf("%d\ttab\t  %s", panes[0].ID, paint(color, title)))
+			for i, w := range panes {
+				repo := paint(0x666666, "-")
+				if root := projectRoot(w.Cwd); root != "" {
+					repo = paint(0x8be9fd, filepath.Base(root))
+					if rel, err := filepath.Rel(root, w.Cwd); err == nil && rel != "." {
+						repo += " " + paint(0x50fa7b, rel)
+					}
+				}
+				body = append(body, fmt.Sprintf("%d\tpane\t    %s %s %s", w.ID, paint(0xf1fa8c, fmt.Sprintf("%2d", i+1)), repo, paint(0xbd93f9, processName(w))))
+			}
+		}
+		if len(body) == 0 {
+			continue
+		}
+		label := strings.Join(projects, ", ")
+		if label == "" {
+			label = "Window"
+		}
+		rows = append(rows, fmt.Sprintf("%d\tos\t%s", first, paint(0xff79c6, label)))
+		rows = append(rows, body...)
+	}
+	return rows
+}
+
+func Switch() error {
+	windows, err := List()
+	if err != nil {
+		return err
+	}
+	self, _ := strconv.Atoi(os.Getenv("KITTY_WINDOW_ID"))
+	rows := Rows(windows, WindowID(self))
+	if len(rows) == 0 {
+		return nil
+	}
+	binary, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	preview := "'" + strings.ReplaceAll(binary, "'", "'\"'\"'") + "' preview {1}"
+	cmd := exec.Command("fzf", "--ansi", "--delimiter", "\t", "--with-nth", "3", "--header", "Select Kitty pane", "--layout=reverse", "--border", "--prompt", "Go to > ", "--preview", preview, "--preview-window", "down,65%,border-top")
+	cmd.Env = append(os.Environ(), "SHELL=/bin/sh", "FZF_DEFAULT_OPTS=", "FZF_DEFAULT_OPTS_FILE=")
+	cmd.Stdin = strings.NewReader(strings.Join(rows, "\n"))
+	cmd.Stderr = os.Stderr
+	output, err := cmd.Output()
+	if err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && (exit.ExitCode() == 1 || exit.ExitCode() == 130) {
+			return nil
+		}
+		return err
+	}
+	selected, _, _ := strings.Cut(strings.TrimSpace(string(output)), "\t")
+	id, err := strconv.Atoi(selected)
+	if err != nil || id <= 0 {
+		return errors.New("selected window ID is invalid")
+	}
+	_, err = Remote("focus-window", "--match", Match(WindowID(id)))
+	return err
+}
+
+func Clean(text string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, text)
+}

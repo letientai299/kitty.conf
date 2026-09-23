@@ -1,0 +1,46 @@
+[tools]
+go = "1.27.1"
+prek = "0.5.3"
+golangci-lint = "2.13.2"
+ruff = "0.16.8"
+prettier = "3.9.8"
+python = "3.14.7"
+
+[tasks.build]
+description = "Build Go utilities"
+run = "go build -trimpath -o bin/kt ./cmd/kt"
+
+[tasks.install]
+description = "Install kt into ~/.local/bin"
+depends = ["build"]
+run = ['mkdir -p "$HOME/.local/bin"', 'ln -sfn "$PWD/bin/kt" "$HOME/.local/bin/kt"']
+
+[tasks.launch]
+description = "Launch an isolated Kitty instance"
+depends = ["build"]
+run = "./bin/kt"
+
+[tasks.fmt]
+description = "Format source and documentation"
+run = ["gofmt -w cmd internal", "ruff check --fix .", "ruff format .", "prettier --write '**/*.md' '*.yaml'"]
+
+[tasks.lint]
+description = "Check source and formatting"
+run = ["golangci-lint run", "ruff check .", "ruff format --check .", "prettier --check '**/*.md' '*.yaml'"]
+
+[tasks.test]
+depends = ["build"]
+description = "Test utilities and Python integration"
+run = ["go test -race ./...", "python -m unittest discover -s tests"]
+
+[tasks.bench]
+description = "Benchmark switcher row construction"
+run = "go test ./internal/kitty -run '^$' -bench BenchmarkRows -benchmem"
+
+[tasks.check]
+description = "Build, lint, and test"
+depends = ["build", "lint", "test"]
+
+[tasks.hooks]
+description = "Install repository hooks"
+run = "prek install"

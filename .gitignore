@@ -1,0 +1,5 @@
+/bin/
+/.ai/
+__pycache__/
+.ruff_cache/
+agents.local.md
