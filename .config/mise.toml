@@ -39,11 +39,11 @@ run = "./bin/kt"
 [tasks."qt:register"]
 description = "Bind Cmd+Esc to this checkout's quick terminal"
 depends = ["build"]
-run = "python scripts/qt-service.py register"
+run = "python scripts/qt-hotkey.py register"
 
 [tasks."qt:unregister"]
-description = "Restore the previous quick terminal shortcut"
-run = "python scripts/qt-service.py unregister"
+description = "Remove this checkout's quick terminal shortcut"
+run = "python scripts/qt-hotkey.py unregister"
 
 [tasks.fmt]
 description = "Format source and documentation"
