@@ -4,3 +4,8 @@ __pycache__/
 .ruff_cache/
 /.venv/
 agents.local.md
+
+/conf/local/
+/conf/current-theme.conf
+/conf/*-theme.auto.conf
+/conf/*.bak

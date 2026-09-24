@@ -5,6 +5,8 @@ golangci-lint = "2.13.2"
 ruff = "0.16.8"
 prettier = "3.9.8"
 python = "3.14.7"
+shellcheck = "0.11.0"
+shfmt = "3.14.1"
 uv = "0.12.17"
 ty = "0.0.83"
 
@@ -36,11 +38,11 @@ run = "./bin/kt"
 
 [tasks.fmt]
 description = "Format source and documentation"
-run = ["gofmt -w cmd internal", "ruff check --fix .", "ruff format .", "prettier --write '**/*.md' '*.yaml'"]
+run = ["gofmt -w cmd internal", "ruff check --fix .", "ruff format .", "shfmt -w scripts/open-url", "prettier --write '**/*.md' '*.yaml'"]
 
 [tasks.lint]
 description = "Check source and formatting"
-run = ["golangci-lint run", "ruff check .", "ruff format --check .", "ty check", "prettier --check '**/*.md' '*.yaml'"]
+run = ["golangci-lint run", "ruff check .", "ruff format --check .", "ty check", "shellcheck scripts/open-url", "shfmt -d scripts/open-url", "prettier --check '**/*.md' '*.yaml'"]
 
 [tasks.test]
 depends = ["build"]

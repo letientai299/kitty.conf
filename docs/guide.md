@@ -39,9 +39,9 @@ Kitty tab titles take precedence in the tab bar. The switcher preserves its
 original task/project fallback behavior.
 
 The tab bar retains deterministic project/task colors, inactive dimming,
-process/folder fallback, and project caching. The active theme and automatic
-no-preference theme are copied from dotfiles. The unused third-party theme
-catalog stays in dotfiles; use Kitty's themes kitten to choose another theme.
+process/folder fallback, and project caching. Carbonfox supplies the shared
+fallback palette; font and theme choices belong in ignored `conf/local/` files.
+See [configuration][configuration] for local settings and theme selection.
 The quick-access settings remain in `conf/quick-access-terminal.conf` for Kitty's
 quick-access facility; `kt` opens a normal terminal.
 
@@ -67,3 +67,5 @@ Hidden diagnostics run from the launched instance:
 Stress commands stop on Ctrl+C. Memory stress grows until stopped. Network stress
 requires explicit endpoints; upload payload size comes from `UPLOAD_MB` and
 defaults to 16 MiB. No stress workload runs during normal startup.
+
+[configuration]: configuration.md

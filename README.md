@@ -16,14 +16,15 @@ The launcher opens a new instance using this checkout. Each instance gets a
 private socket and task directory. Existing Kitty instances and the dotfiles
 configuration keep their settings.
 
-Kitty, `fzf`, `nvim`, and Iosevka Nerd Font Mono must be installed. URL actions
-use the existing `~/.local/bin/browse` helper. [mise][mise] manages development
+Kitty, `fzf`, and `nvim` must be installed. The default font is system monospace.
+URL actions use `~/.local/bin/browse` when available, otherwise the OS opener. [mise][mise] manages development
 tools; it does not install desktop applications or change global configuration.
 
 Licensed under the [MIT license][license].
 
 See the [guide][guide], [architecture][architecture], and
-[development instructions][development].
+[development instructions][development]. Local font/theme settings and the
+persistent-zoom proposal are in [configuration][configuration].
 
 [kitty]: https://sw.kovidgoyal.net/kitty/
 [mise]: https://mise.jdx.dev/
@@ -31,3 +32,4 @@ See the [guide][guide], [architecture][architecture], and
 [architecture]: docs/architecture.md
 [development]: docs/development.md
 [license]: LICENSE
+[configuration]: docs/configuration.md

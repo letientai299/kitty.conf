@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+if [ "$#" -ne 1 ]; then
+	echo 'Expected one URL.' >&2
+	exit 1
+fi
+if [ -x "$HOME/.local/bin/browse" ]; then
+	exec "$HOME/.local/bin/browse" "$1"
+fi
+case $(uname -s) in
+Darwin) exec /usr/bin/open "$1" ;;
+Linux) exec xdg-open "$1" ;;
+*)
+	echo 'Unsupported URL opener platform.' >&2
+	exit 1
+	;;
+esac

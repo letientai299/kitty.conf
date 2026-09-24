@@ -43,6 +43,7 @@ Pass a program after -- to run it instead of a shell.`,
 			RunE:  func(*cobra.Command, []string) error { return kitty.EditTask() },
 		},
 		newRemote(),
+		newTheme(),
 		&cobra.Command{
 			Use:   "ls",
 			Short: "Print the instance layout as JSON",
