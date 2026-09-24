@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 from kitty.config import load_config
 from kitty.fast_data_types import Screen
+from kitty.rgb import color_from_int
+from kitty.tab_bar import as_rgb
 
 root = Path(os.environ["KITTY_CONFIG_DIRECTORY"])
 bad_lines = []
@@ -36,13 +38,59 @@ globals_["TabAccessor"] = lambda _: SimpleNamespace(
 )
 
 
-def draw(tab_id, title, width, active=True, last=True):
+def draw(tab_id, title, width, active=True, last=True, palette=None):
     screen = Screen(None, 1, 40)
     tab = SimpleNamespace(tab_id=tab_id, title=title, is_active=active)
-    end = draw_tab(None, screen, tab, 0, width, 1, last, None)
+    if palette is None:
+        palette = (
+            options.active_tab_foreground,
+            options.active_tab_background,
+            options.inactive_tab_foreground,
+            options.inactive_tab_background,
+            options.tab_bar_background or options.background,
+        )
+    fg, bg = palette[:2] if active else palette[2:4]
+    screen.cursor.fg, screen.cursor.bg = as_rgb(int(fg)), as_rgb(int(bg))
+    data = SimpleNamespace(default_bg=palette[4])
+    end = draw_tab(data, screen, tab, 0, width, 1, last, None)
     assert end <= width, (title, width, end)
     assert screen.cursor.x == end and screen.cursor.y == 0
+    for x in range(end):
+        cell = screen.line(0).cursor_from(x)
+        if x == 1:
+            assert color_from_int(cell.fg >> 8).contrast(color_from_int(int(bg))) >= 3
+        else:
+            assert cell.fg == as_rgb(int(fg)), (x, cell.fg, fg)
+        assert cell.bg == as_rgb(int(bg)), (x, cell.bg, bg)
+    if last:
+        for x in range(end, screen.columns):
+            assert screen.line(0).cursor_from(x).bg == as_rgb(int(data.default_bg))
     return screen
+
+
+profile = Screen(None, 1, 40).color_profile
+marker_color = module["marker_color"]
+for index in range(16):
+    profile.set_color(index, 0x88AA00 + index)
+identities = ("project", "another-project", "task", "manual title")
+markers = [marker_color(name, profile, 0) for name in identities]
+assert len(set(markers)) > 1
+for index in range(16):
+    profile.set_color(index, 0x88AA20 + index)
+assert [marker_color(name, profile, 0) for name in identities] == [
+    color + (0x20 << 8) for color in markers
+]
+for index in range(16):
+    profile.set_color(index, 0x5588BB)
+first = marker_color("project", profile, 0)
+assert first == as_rgb(0x5588BB)
+assert marker_color("project", profile, 0) == first
+for index in range(16):
+    profile.set_color(index, 0xBB8855)
+assert marker_color("project", profile, 0) == as_rgb(0xBB8855)
+for bg in (0, 0x5588BB, 0xFFFFFF):
+    adjusted = marker_color("project", profile, bg)
+    assert color_from_int(adjusted >> 8).contrast(color_from_int(bg)) >= 3
 
 
 deadline = time.monotonic() + 5
@@ -53,6 +101,14 @@ assert worker.styles[1]["active"]["segments"][1]["text"] == "live", worker.style
 assert (state / "task-1").read_text() == "live"
 assert not (state / "task-2").exists()
 assert (state / "other").exists()
+
+for palette in (
+    (0xEEEEEE, 0x223344, 0xAAAAAA, 0x112233, 0x101010),
+    (0x111111, 0xCCDDEE, 0x333333, 0xEEEEEE, 0xFFFFFF),
+):
+    for active in (False, True):
+        for tab_id in (1, 2):
+            draw(tab_id, "fallback", 20, active=active, palette=palette)
 
 for title in ("任务" * 40, "ascii" * 40, "é" * 40, "bad\n\x1btitle"):
     for width in (0, 1, 2, 3, 8, 20):

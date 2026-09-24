@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import select
@@ -7,7 +8,8 @@ import time
 import unicodedata
 
 import kitty.tab_bar as kitty_tab_bar
-from kitty.fast_data_types import get_boss, truncate_point_for_length, wcswidth
+from kitty.fast_data_types import Color, get_boss, truncate_point_for_length, wcswidth
+from kitty.rgb import color_from_int
 from kitty.tab_bar import TabAccessor, as_rgb
 
 PROTOCOL = 1
@@ -111,34 +113,59 @@ setattr(kitty_tab_bar, "_kitty_conf_worker", worker)
 
 
 def fallback(tab):
-    fg = 0xFFFFFF if tab.is_active else 0x999999
     title = "".join(" " if unicodedata.category(c) == "Cc" else c for c in tab.title)
-    segments = [{"text": text, "color": fg} for text in (" ", title, " ")]
-    return {"background": 0x1A3A6A if tab.is_active else 0x2A2A2A, "segments": segments}
+    return {"segments": [{"text": text} for text in (" ", title, " ")]}
+
+
+def marker_color(name, profile, background):
+    accents = (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14)
+    slot = accents[
+        int.from_bytes(hashlib.sha256(name.encode()).digest()) % len(accents)
+    ]
+    color = profile.as_color((slot << 8) | 1)
+    assert color is not None
+    bg = color_from_int(background)
+    target = max((Color(0, 0, 0), Color(255, 255, 255)), key=bg.contrast)
+    adjusted = color
+    for step in range(1, 21):
+        if adjusted.contrast(bg) >= 3:
+            break
+        amount = step / 20
+        adjusted = Color(
+            round(color.red + (target.red - color.red) * amount),
+            round(color.green + (target.green - color.green) * amount),
+            round(color.blue + (target.blue - color.blue) * amount),
+        )
+    return as_rgb(int(adjusted))
 
 
 def draw_tab(
-    _draw_data, screen, tab, _before, max_title_length, _index, is_last, _extra_data
+    draw_data, screen, tab, _before, max_title_length, _index, is_last, _extra_data
 ):
     worker.refresh(get_boss())
     styles = worker.styles.get(tab.tab_id)
     style = (
         styles["active" if tab.is_active else "inactive"] if styles else fallback(tab)
     )
-    screen.cursor.bg = as_rgb(style["background"])
+    # Kitty initializes the cursor with theme colors.
+    foreground = screen.cursor.fg
+    segments = [(segment["text"], foreground) for segment in style["segments"]]
+    name = "".join(text for text, _ in segments).strip()
+    marker = marker_color(name, screen.color_profile, screen.cursor.bg >> 8)
+    segments[:0] = [(" ", foreground), ("●", marker)]
     remaining = min(max_title_length, screen.columns - screen.cursor.x)
-    for segment in style["segments"]:
+    for text, color in segments:
         if remaining <= 0:
             break
-        text = segment["text"]
         if wcswidth(text) > remaining:
             text = text[: truncate_point_for_length(text, remaining - 1)] + "…"
-        screen.cursor.fg = as_rgb(segment["color"])
+        screen.cursor.fg = color
         screen.draw(text)
         remaining -= wcswidth(text)
     end = screen.cursor.x
+    screen.cursor.fg = foreground
     if is_last:
-        screen.cursor.bg = as_rgb(0)
+        screen.cursor.bg = as_rgb(int(draw_data.default_bg))
         screen.draw(" " * max(0, screen.columns - end))
         screen.cursor.x = end
     return end
