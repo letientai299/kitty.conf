@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"kitty.conf/internal/kitty"
+	"kitty.conf/internal/tabbar"
 )
 
 func newRoot() *cobra.Command {
@@ -69,6 +71,7 @@ Pass a program after -- to run it instead of a shell.`,
 			Args:   cobra.ArbitraryArgs,
 			RunE:   func(_ *cobra.Command, args []string) error { return kitty.Pager(args) },
 		},
+		newTabBar(),
 		&cobra.Command{
 			Use:                "stress {cpu [workers] | memory [mb [seconds]] | network {download|upload|both} URL...}",
 			Short:              "Generate load for terminal testing",
@@ -93,6 +96,38 @@ Targets every pane in the current tab unless --pick selects them.`,
 	}
 	cmd.Flags().IntVarP(&opts.New, "new", "n", 0, "create this many panes first")
 	cmd.Flags().BoolVarP(&opts.Pick, "pick", "p", false, "choose target panes with fzf")
+	return cmd
+}
+
+func newTabBar() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:    "tab-bar",
+		Short:  "Compute tab-bar labels for conf/tab_bar.py",
+		Hidden: true,
+	}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "render",
+		Short: "Render one JSON snapshot from stdin",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			var req tabbar.Request
+			if err := json.NewDecoder(os.Stdin).Decode(&req); err != nil {
+				return fmt.Errorf("snapshot decode failed: %w", err)
+			}
+			out, err := tabbar.NewBuilder().Render(req)
+			if err != nil {
+				return err
+			}
+			return json.NewEncoder(os.Stdout).Encode(out)
+		},
+	}, &cobra.Command{
+		Use:   "serve",
+		Short: "Answer JSON snapshots on stdin until EOF",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			return tabbar.Serve(os.Stdin, os.Stdout)
+		},
+	})
 	return cmd
 }
 

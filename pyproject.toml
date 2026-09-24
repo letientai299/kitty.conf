@@ -1,0 +1,13 @@
+[project]
+name = "kitty-conf"
+version = "0"
+requires-python = ">=3.14"
+
+[tool.uv]
+package = false
+
+[tool.ty.environment]
+python = ".venv"
+# Kitty freezes its Python modules into the app; mise setup checks out the
+# matching source so imports and fast_data_types stubs resolve.
+extra-paths = [".venv/kitty-src"]

@@ -5,6 +5,16 @@ golangci-lint = "2.13.2"
 ruff = "0.16.8"
 prettier = "3.9.8"
 python = "3.14.7"
+uv = "0.12.17"
+ty = "0.0.83"
+
+[tasks.setup]
+description = "Create the Python env and fetch Kitty sources for type checking"
+run = [
+  "uv sync",
+  '''[ -d .venv/kitty-src/.git ] || git clone --quiet --depth 1 --filter=blob:none --sparse --branch "v$(kitty --version | cut -d' ' -f2)" https://github.com/kovidgoyal/kitty .venv/kitty-src''',
+  "git -C .venv/kitty-src sparse-checkout set kitty",
+]
 
 [tasks.build]
 description = "Build Go utilities"
@@ -30,7 +40,7 @@ run = ["gofmt -w cmd internal", "ruff check --fix .", "ruff format .", "prettier
 
 [tasks.lint]
 description = "Check source and formatting"
-run = ["golangci-lint run", "ruff check .", "ruff format --check .", "prettier --check '**/*.md' '*.yaml'"]
+run = ["golangci-lint run", "ruff check .", "ruff format --check .", "ty check", "prettier --check '**/*.md' '*.yaml'"]
 
 [tasks.test]
 depends = ["build"]

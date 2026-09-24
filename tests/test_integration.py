@@ -8,9 +8,6 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
-
-from conf import kitty_shared
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -102,38 +99,6 @@ class IntegrationTests(unittest.TestCase):
                 if proc.poll() is None:
                     proc.terminate()
                     proc.wait(timeout=20)
-
-    def test_task_reader(self):
-        with tempfile.TemporaryDirectory() as directory:
-            with patch.dict(os.environ, KITTY_REPO_STATE=directory):
-                path = Path(kitty_shared.tab_task_file(1))
-                path.write_text(" task one\nignored\n")
-                self.assertEqual(kitty_shared.read_tab_task(1), "task one")
-                self.assertIsNone(kitty_shared.read_tab_task(2))
-
-    def test_task_cache(self):
-        with tempfile.TemporaryDirectory() as directory:
-            with patch.dict(os.environ, KITTY_REPO_STATE=directory):
-                path = Path(kitty_shared.tab_task_file(1))
-                path.write_text("first")
-                kitty_shared._read_task.cache_clear()
-                for _ in range(10):
-                    self.assertEqual(kitty_shared.read_tab_task(1), "first")
-                self.assertEqual(kitty_shared._read_task.cache_info().misses, 1)
-                replacement = path.with_suffix(".new")
-                replacement.write_text("other")
-                replacement.replace(path)
-                self.assertEqual(kitty_shared.read_tab_task(1), "other")
-                path.write_bytes(b"invalid \xff")
-                self.assertEqual(kitty_shared.read_tab_task(1), "invalid \ufffd")
-
-    def test_colors(self):
-        for name, color in [
-            ("", 0xFF6E6E),
-            ("kitty.conf", 0xFF79C6),
-            ("任务", 0xF1FA8C),
-        ]:
-            self.assertEqual(kitty_shared.get_project_color(name), color)
 
     @unittest.skipUnless(shutil.which("kitty"), "Kitty is unavailable")
     def test_kitty_runtime(self):

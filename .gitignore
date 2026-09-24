@@ -2,4 +2,5 @@
 /.ai/
 __pycache__/
 .ruff_cache/
+/.venv/
 agents.local.md

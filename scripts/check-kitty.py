@@ -1,5 +1,6 @@
 import os
 import runpy
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,46 +19,51 @@ assert options.scrollback_pager[1] == "pager"
 assert options.macos_option_as_alt
 
 module = runpy.run_path(str(root / "tab_bar.py"))
+draw_tab = module["draw_tab"]
+globals_ = draw_tab.__globals__
+worker = module["Worker"]()
+globals_["worker"] = worker
 state = Path(os.environ["KITTY_REPO_STATE"])
 (state / "task-1").write_text("live")
 (state / "task-2").write_text("closed")
 (state / "other").write_text("unrelated")
-module["_prune_task_files"](SimpleNamespace(all_tabs=[SimpleNamespace(id=1)]))
-assert (state / "task-1").read_text() == "live"
-assert not (state / "task-2").exists()
-assert (state / "other").exists()
-print("Kitty config and callback checks passed.")
 
-
-globals_ = module["draw_tab"].__globals__
-boss = SimpleNamespace(
-    all_tabs=[SimpleNamespace(id=1)],
-    tab_for_id=lambda _: SimpleNamespace(name="manual"),
-)
+tabs = [SimpleNamespace(id=1, os_window_id=1, name="", title="zsh")]
+boss = SimpleNamespace(all_tabs=tabs)
 globals_["get_boss"] = lambda: boss
-for title in ("任务" * 40, "ascii" * 40, "e\u0301" * 40, "bad\n\x1btitle"):
-    for width in (0, 1, 2, 3, 8, 20):
-        screen = Screen(None, 1, 40)
-        tab = SimpleNamespace(tab_id=1, title=title, is_active=True)
-        end = module["draw_tab"](None, screen, tab, 0, width, 1, True, None)
-        assert end <= width, (title, width, end)
-        assert screen.cursor.x == end
-        assert screen.cursor.y == 0
-
-globals_["_tab_project_cache"][999] = "closed"
-globals_["_last_task_prune"] = 0
-module["_prune_task_files"](boss)
-assert 999 not in globals_["_tab_project_cache"]
-
-(state / "task-1").unlink()
 globals_["TabAccessor"] = lambda _: SimpleNamespace(
     active_wd=str(root), active_exe="zsh", active_oldest_exe="zsh"
 )
-boss.tab_for_id = lambda _: SimpleNamespace(name="")
-for label in ("任务" * 40, " " * 10):
-    tab = SimpleNamespace(tab_id=1, title=label, is_active=True)
-    for width in (0, 1, 3, 8, 20):
-        screen = Screen(None, 1, 40)
-        end = module["draw_tab"](None, screen, tab, 0, width, 1, False, None)
-        assert end <= width
-assert module["_process_name"](globals_["TabAccessor"](1), "   ") == "zsh"
+
+
+def draw(tab_id, title, width, active=True, last=True):
+    screen = Screen(None, 1, 40)
+    tab = SimpleNamespace(tab_id=tab_id, title=title, is_active=active)
+    end = draw_tab(None, screen, tab, 0, width, 1, last, None)
+    assert end <= width, (title, width, end)
+    assert screen.cursor.x == end and screen.cursor.y == 0
+    return screen
+
+
+deadline = time.monotonic() + 5
+while 1 not in worker.styles and time.monotonic() < deadline:
+    draw(1, "zsh", 20)
+    time.sleep(0.02)
+assert worker.styles[1]["active"]["segments"][1]["text"] == "live", worker.styles
+assert (state / "task-1").read_text() == "live"
+assert not (state / "task-2").exists()
+assert (state / "other").exists()
+
+for title in ("任务" * 40, "ascii" * 40, "é" * 40, "bad\n\x1btitle"):
+    for width in (0, 1, 2, 3, 8, 20):
+        draw(1, title, width)
+        draw(2, title, width, active=False, last=False)
+
+worker.stop()
+assert worker.proc is None
+globals_["_BINARY"] = str(state / "missing")
+broken = module["Worker"]()
+globals_["worker"] = broken
+screen = draw(1, "plain", 20)
+assert broken.proc is None and broken.styles == {}
+print("Kitty config and callback checks passed.")
