@@ -3,6 +3,7 @@ package kitty
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -30,7 +31,7 @@ func positive(args []string, index, fallback int) (int, error) {
 
 func Stress(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("stress requires cpu, memory, or network")
+		return errors.New("stress requires cpu, memory, or network")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -75,13 +76,14 @@ func stressMemory(ctx context.Context, args []string) error {
 	if len(args) > 1 {
 		interval, err = strconv.ParseFloat(args[1], 64)
 		if err != nil || interval <= 0 || math.IsNaN(interval) || math.IsInf(interval, 0) || interval >= float64(math.MaxInt64)/float64(time.Second) {
-			return fmt.Errorf("memory interval is invalid")
+			return errors.New("memory interval is invalid")
 		}
 	}
 	delay := time.Duration(interval * float64(time.Second))
 	if delay <= 0 || mb > int(^uint(0)>>1)/(1024*1024) {
-		return fmt.Errorf("memory allocation parameters are invalid")
+		return errors.New("memory allocation parameters are invalid")
 	}
+	pageSize := os.Getpagesize()
 	var chunks [][]byte
 	for {
 		select {
@@ -91,7 +93,7 @@ func stressMemory(ctx context.Context, args []string) error {
 		default:
 		}
 		chunk := make([]byte, mb*1024*1024)
-		for i := 0; i < len(chunk); i += 4096 {
+		for i := 0; i < len(chunk); i += pageSize {
 			chunk[i] = 1
 		}
 		chunks = append(chunks, chunk)
@@ -107,14 +109,14 @@ func stressMemory(ctx context.Context, args []string) error {
 
 func stressNetwork(ctx context.Context, args []string) error {
 	if len(args) < 2 {
-		return fmt.Errorf("network requires mode and download/upload URLs")
+		return errors.New("network requires mode and download/upload URLs")
 	}
 	mode := args[0]
 	if mode != "download" && mode != "upload" && mode != "both" {
-		return fmt.Errorf("network mode is invalid")
+		return errors.New("network mode is invalid")
 	}
 	if mode == "both" && len(args) < 3 {
-		return fmt.Errorf("both requires download and upload URLs")
+		return errors.New("both requires download and upload URLs")
 	}
 	for _, endpoint := range args[1:] {
 		parsed, err := url.Parse(endpoint)
@@ -131,9 +133,10 @@ func stressNetwork(ctx context.Context, args []string) error {
 		}
 	}
 	if mb > int(^uint(0)>>1)/(1024*1024) {
-		return fmt.Errorf("upload size is invalid")
+		return errors.New("upload size is invalid")
 	}
-	client := &http.Client{Timeout: 30 * time.Second}
+	// Whole-transfer timeouts abort large stress payloads.
+	client := &http.Client{Transport: &http.Transport{ResponseHeaderTimeout: 30 * time.Second}}
 	defer client.CloseIdleConnections()
 	var wg sync.WaitGroup
 	worker := func(method, url string, body []byte) {

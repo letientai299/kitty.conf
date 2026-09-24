@@ -43,8 +43,5 @@ func EditTask() error {
 	}
 	cmd := exec.Command("nvim", path)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	if err = cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+	return cmd.Run()
 }

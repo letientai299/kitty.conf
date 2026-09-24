@@ -74,10 +74,15 @@ func TestCurrentTab(t *testing.T) {
 
 func TestRows(t *testing.T) {
 	t.Setenv("KITTY_REPO_STATE", t.TempDir())
-	windows := []OSWindow{{Tabs: []Tab{{ID: 1, Title: "tab\n\x1b[31m", Windows: []Window{{ID: 10, Cmdline: []string{"zsh"}}, {ID: 20, Title: "editor\tname", Foreground: []Process{{Cmdline: []string{"nvim"}}}}, {ID: 99, Cmdline: []string{"kt", "switch"}}}}}}}
+	windows := []OSWindow{{Tabs: []Tab{{ID: 1, Title: "tab\n\x1b[31m", Windows: []Window{{ID: 10, Cmdline: []string{"zsh"}}, {ID: 20, Title: "editor\tname", Active: true, Foreground: []Process{{Cmdline: []string{"nvim"}}}}, {ID: 99, Cmdline: []string{"kt", "switch"}}}}}}}
 	rows := Rows(windows, 99)
 	if len(rows) != 4 {
 		t.Fatalf("rows: %v", rows)
+	}
+	for _, row := range rows[:2] {
+		if !strings.HasPrefix(row, "20\t") {
+			t.Fatalf("inactive pane targeted: %q", row)
+		}
 	}
 	for _, row := range rows {
 		if len(strings.Split(row, "\t")) != 3 || strings.Contains(row, "\n") {

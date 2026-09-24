@@ -1,7 +1,7 @@
 package kitty
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"os/exec"
 	"strconv"
@@ -11,7 +11,7 @@ func Broadcast() error {
 	binary := os.Getenv("KITTY_REPO_KITTEN")
 	self, err := strconv.Atoi(os.Getenv("KITTY_WINDOW_ID"))
 	if binary == "" || err != nil || self <= 0 {
-		return fmt.Errorf("broadcast instance or window is missing")
+		return errors.New("broadcast instance or window is missing")
 	}
 	for range 4 {
 		if _, err := Remote("launch", "--type=window", "--keep-focus"); err != nil {

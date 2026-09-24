@@ -2,7 +2,54 @@ version: "2"
 linters:
   default: standard
   enable:
+    - bodyclose
+    - copyloopvar
     - dupl
+    - durationcheck
+    - errchkjson
+    - errorlint
+    - fatcontext
+    - gocritic
+    - gosec
+    - intrange
+    - makezero
+    - mirror
+    - modernize
+    - nilerr
+    - perfsprint
+    - prealloc
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+  settings:
+    gocritic:
+      enabled-tags: [diagnostic, performance]
+    gosec:
+      severity: low
+      confidence: low
+      excludes:
+        # The launcher execs kitty and kitten by design.
+        - G204
+        - G702
+        # Task and .git reads come from instance state.
+        - G304
+        - G703
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: true
+  exclusions:
+    rules:
+      # MD5 selects palette colors, shared with Python.
+      - path: internal/kitty/color\.go
+        linters: [gosec]
+        text: G(401|501)
+      # Fake commands in tests must be executable.
+      - path: _test\.go
+        linters: [gosec]
+        text: G306
 formatters:
   enable:
     - gofmt

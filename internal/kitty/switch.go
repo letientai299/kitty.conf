@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -15,9 +16,9 @@ func paint(color uint32, value string) string {
 	return fmt.Sprintf("\x1b[38;2;%d;%d;%dm%s\x1b[0m", color>>16, (color>>8)&255, color&255, Clean(value))
 }
 
-func processName(w Window) string {
-	for i := len(w.Foreground) - 1; i >= 0; i-- {
-		cmd := w.Foreground[i].Cmdline
+func processName(w *Window) string {
+	for _, p := range slices.Backward(w.Foreground) {
+		cmd := p.Cmdline
 		if len(cmd) == 0 {
 			continue
 		}
@@ -37,6 +38,15 @@ func processName(w Window) string {
 		return w.Title
 	}
 	return "process"
+}
+
+func target(panes []Window) WindowID {
+	for _, w := range panes {
+		if w.Active {
+			return w.ID
+		}
+	}
+	return panes[0].ID
 }
 
 func Rows(windows []OSWindow, self WindowID) []string {
@@ -72,29 +82,30 @@ func Rows(windows []OSWindow, self WindowID) []string {
 				continue
 			}
 			title := ReadTask(tab.ID)
-			color := Color(title)
-			if title == "" {
+			color := uint32(0x6ea8fe)
+			switch {
+			case title != "":
+				color = Color(title)
+			case project != "":
+				title = "[" + project + "]"
+				color = Color(project)
+			case tab.Title != "":
 				title = tab.Title
-				color = 0x6ea8fe
-				if project != "" {
-					title = "[" + project + "]"
-					color = Color(project)
-				}
-			}
-			if title == "" {
+			default:
 				title = "Tab"
 			}
-			if strings.HasPrefix(title, "[") {
-				p, _, ok := strings.Cut(strings.TrimPrefix(title, "["), "]")
+			if rest, found := strings.CutPrefix(title, "["); found {
+				p, _, ok := strings.Cut(rest, "]")
 				if ok && p != "" && !seen[p] {
 					projects = append(projects, p)
 					seen[p] = true
 				}
 			}
-			if first == 0 {
-				first = panes[0].ID
+			focus := target(panes)
+			if first == 0 || tab.Active {
+				first = focus
 			}
-			body = append(body, fmt.Sprintf("%d\ttab\t  %s", panes[0].ID, paint(color, title)))
+			body = append(body, fmt.Sprintf("%d\ttab\t  %s", focus, paint(color, title)))
 			for i, w := range panes {
 				repo := paint(0x666666, "-")
 				if root := projectRoot(w.Cwd); root != "" {
@@ -103,7 +114,7 @@ func Rows(windows []OSWindow, self WindowID) []string {
 						repo += " " + paint(0x50fa7b, rel)
 					}
 				}
-				body = append(body, fmt.Sprintf("%d\tpane\t    %s %s %s", w.ID, paint(0xf1fa8c, fmt.Sprintf("%2d", i+1)), repo, paint(0xbd93f9, processName(w))))
+				body = append(body, fmt.Sprintf("%d\tpane\t    %s %s %s", w.ID, paint(0xf1fa8c, fmt.Sprintf("%2d", i+1)), repo, paint(0xbd93f9, processName(&w))))
 			}
 		}
 		if len(body) == 0 {

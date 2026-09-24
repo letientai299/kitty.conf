@@ -1,6 +1,7 @@
 package kitty
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +11,7 @@ import (
 func TaskPath(id TabID) (string, error) {
 	state := os.Getenv("KITTY_REPO_STATE")
 	if state == "" || id <= 0 {
-		return "", fmt.Errorf("task state or tab ID is invalid")
+		return "", errors.New("task state or tab ID is invalid")
 	}
 	return filepath.Join(state, fmt.Sprintf("task-%d", id)), nil
 }

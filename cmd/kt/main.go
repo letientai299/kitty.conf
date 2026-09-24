@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -37,11 +38,11 @@ func run(args []string) error {
 		return err
 	case "preview":
 		if len(args) != 2 {
-			return fmt.Errorf("preview requires a window ID")
+			return errors.New("preview requires a window ID")
 		}
 		id, err := strconv.Atoi(args[1])
 		if err != nil || id <= 0 {
-			return fmt.Errorf("window ID is invalid")
+			return errors.New("window ID is invalid")
 		}
 		data, err := kitty.Remote("get-text", "--match", kitty.Match(kitty.WindowID(id)), "--ansi", "--extent", "screen")
 		if err != nil {

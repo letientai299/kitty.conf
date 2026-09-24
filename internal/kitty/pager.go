@@ -1,6 +1,7 @@
 package kitty
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,7 +12,7 @@ import (
 func Pager(args []string) error {
 	cursor := "normal! G"
 	if len(args) != 0 && len(args) != 3 {
-		return fmt.Errorf("pager requires zero or three coordinates")
+		return errors.New("pager requires zero or three coordinates")
 	}
 	if len(args) == 3 {
 		coords := [3]int{}
