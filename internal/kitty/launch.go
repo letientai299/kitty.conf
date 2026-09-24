@@ -2,6 +2,7 @@ package kitty
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -51,6 +52,46 @@ func checkoutRoot() (string, error) {
 }
 
 func Launch(args []string) error {
+	binary, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = reader.Close() }()
+	cmd := exec.Command(binary, append([]string{"__launch", "--"}, args...)...)
+	cmd.ExtraFiles = []*os.File{writer}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = nil, nil, nil
+	if err := cmd.Start(); err != nil {
+		_ = writer.Close()
+		return err
+	}
+	_ = writer.Close()
+	defer func() { _ = cmd.Process.Release() }()
+	status, err := io.ReadAll(reader)
+	if err != nil {
+		return err
+	}
+	if string(status) != "ok" {
+		return fmt.Errorf("kitty launch failed: %s", status)
+	}
+	return nil
+}
+
+func LaunchWorker(args []string, ready *os.File) (result error) {
+	syscall.CloseOnExec(int(ready.Fd()))
+	defer func() {
+		if ready == nil {
+			return
+		}
+		if result != nil {
+			_, _ = fmt.Fprint(ready, result)
+		}
+		_ = ready.Close()
+	}()
 	root, kittyBin, kitten, err := launchPaths()
 	if err != nil {
 		return err
@@ -82,6 +123,13 @@ func Launch(args []string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	if _, err := ready.WriteString("ok"); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return err
+	}
+	_ = ready.Close()
+	ready = nil
 	done := make(chan struct{})
 	defer close(done)
 	go func() {

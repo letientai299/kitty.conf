@@ -4,7 +4,7 @@ The launcher selects this checkout through `KITTY_CONFIG_DIRECTORY` and explicit
 config paths. It creates a private temporary directory for the instance socket
 and task files, clears inherited instance identifiers, and runs Kitty without
 single-instance reuse. Closing Kitty removes that directory. Forced termination
-of the launcher can leave an unused directory under `/tmp/kitty-conf-*`.
+of the background worker can leave an unused directory under `/tmp/kitty-conf-*`.
 
 The Go executable provides short-lived commands for the switcher, task editor,
 scrollback pager, diagnostics, and stress tools. It uses the standard library

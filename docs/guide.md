@@ -1,8 +1,8 @@
 # Guide
 
 Run `kt` from any working directory after `mise run install`. The working
-directory becomes the first shell's directory. Keep the launcher running until
-that instance closes; its process owns task-file cleanup.
+directory becomes the first shell's directory. The command returns after Kitty
+starts. A background worker removes the instance's task files when Kitty closes.
 
 To run a program instead of a shell:
 

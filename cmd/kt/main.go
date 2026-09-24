@@ -31,6 +31,17 @@ Pass a program after -- to run it instead of a shell.`,
 	}
 	root.AddCommand(
 		&cobra.Command{
+			Use:                "__launch",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(_ *cobra.Command, args []string) error {
+				if len(args) > 0 && args[0] == "--" {
+					args = args[1:]
+				}
+				return kitty.LaunchWorker(args, os.NewFile(3, "launch status"))
+			},
+		},
+		&cobra.Command{
 			Use:   "qt",
 			Short: "Toggle this checkout's quick terminal",
 			Args:  cobra.NoArgs,

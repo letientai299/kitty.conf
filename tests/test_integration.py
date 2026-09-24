@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -13,6 +14,23 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class IntegrationTests(unittest.TestCase):
+    def test_launcher_start_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory)
+            executable = fake / "kitty"
+            executable.write_text("#!/missing/interpreter\n")
+            executable.chmod(0o755)
+            (fake / "kitten").touch()
+            result = subprocess.run(
+                [str(ROOT / "bin/kt")],
+                env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("kitty launch failed:", result.stderr)
+
     def test_launcher(self):
         with tempfile.TemporaryDirectory(prefix="kitty test ") as directory:
             fake = Path(directory)
@@ -47,7 +65,11 @@ class IntegrationTests(unittest.TestCase):
                     env=env,
                     check=True,
                 )
+                deadline = time.monotonic() + 5
+                while not record.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
                 result = json.loads(record.read_text())
+                record.unlink()
                 self.assertEqual(
                     result["env"]["KITTY_CONFIG_DIRECTORY"], str(ROOT / "conf")
                 )
@@ -60,6 +82,9 @@ class IntegrationTests(unittest.TestCase):
                 self.assertNotIn("--single-instance", result["args"])
                 state = result["env"]["KITTY_REPO_STATE"]
                 states.append(state)
+                deadline = time.monotonic() + 5
+                while Path(state).exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
                 self.assertFalse(Path(state).exists())
             self.assertNotEqual(*states)
 
@@ -70,35 +95,46 @@ class IntegrationTests(unittest.TestCase):
             executable = fake / "kitty"
             executable.write_text(
                 f"#!{sys.executable}\n"
-                "import os, signal, sys, time\n"
+                "import json, os, signal, sys, time\n"
                 "from pathlib import Path\n"
                 "signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))\n"
-                "Path(os.environ['TEST_RECORD']).write_text(os.environ['KITTY_REPO_STATE'])\n"
+                "Path(os.environ['TEST_RECORD']).write_text(json.dumps({"
+                "'state': os.environ['KITTY_REPO_STATE'], 'pid': os.getpid()}))\n"
                 "time.sleep(15)\n"
             )
             executable.chmod(0o755)
             (fake / "kitten").touch()
-            proc = subprocess.Popen(
+            started = time.monotonic()
+            subprocess.run(
                 [str(ROOT / "bin/kt")],
                 env=dict(
                     os.environ,
                     PATH=f"{fake}:{os.environ['PATH']}",
                     TEST_RECORD=str(record),
                 ),
+                check=True,
+                capture_output=True,
+                timeout=5,
             )
+            self.assertLess(time.monotonic() - started, 2)
+            state = None
+            result = None
             try:
                 deadline = time.monotonic() + 5
                 while not record.exists() and time.monotonic() < deadline:
                     time.sleep(0.01)
                 self.assertTrue(record.exists())
-                state = Path(record.read_text())
-                proc.terminate()
-                self.assertEqual(proc.wait(timeout=5), 0)
+                result = json.loads(record.read_text())
+                state = Path(result["state"])
+                self.assertTrue(state.exists())
+                os.kill(result["pid"], signal.SIGTERM)
+                deadline = time.monotonic() + 5
+                while state.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
                 self.assertFalse(state.exists())
             finally:
-                if proc.poll() is None:
-                    proc.terminate()
-                    proc.wait(timeout=20)
+                if result is not None and state is not None and state.exists():
+                    os.kill(result["pid"], signal.SIGTERM)
 
     @unittest.skipUnless(shutil.which("kitty"), "Kitty is unavailable")
     def test_kitty_runtime(self):
