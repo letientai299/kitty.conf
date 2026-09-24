@@ -26,9 +26,6 @@ func processName(w *Window) string {
 		if name == "fzf" || name == "kt" {
 			continue
 		}
-		if (name == "nvim" || name == "claude") && w.Title != "" {
-			return w.Title
-		}
 		return name
 	}
 	if len(w.Cmdline) > 0 {
@@ -119,7 +116,12 @@ func Rows(windows []OSWindow, self WindowID) []string {
 						repo += " " + paint(0x50fa7b, rel)
 					}
 				}
-				body = append(body, fmt.Sprintf("%d\tpane\t    %s %s %s", w.ID, paint(0xf1fa8c, fmt.Sprintf("%2d", i+1)), repo, paint(0xbd93f9, processName(&w))))
+				name := strings.TrimSpace(Clean(processName(&w)))
+				label := paint(0xbd93f9, name)
+				if title := strings.TrimSpace(Clean(w.Title)); title != "" && title != name {
+					label += " — " + paint(0x999999, title)
+				}
+				body = append(body, fmt.Sprintf("%d\tpane\t    %s %s %s", w.ID, paint(0xf1fa8c, fmt.Sprintf("%2d", i+1)), repo, label))
 			}
 		}
 		if len(body) == 0 {

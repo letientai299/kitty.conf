@@ -100,6 +100,39 @@ func TestRows(t *testing.T) {
 	}
 }
 
+func TestPaneTitles(t *testing.T) {
+	t.Setenv("KITTY_REPO_STATE", t.TempDir())
+	for _, tt := range []struct {
+		name   string
+		window Window
+		want   string
+	}{
+		{"codex", Window{Title: "Fix pane search", Foreground: []Process{{Cmdline: []string{"/bin/codex"}}}}, "codex — Fix pane search"},
+		{"editor", Window{Title: "main.go", Foreground: []Process{{Cmdline: []string{"nvim"}}}}, "nvim — main.go"},
+		{"claude", Window{Title: "Review changes", Foreground: []Process{{Cmdline: []string{"claude"}}}}, "claude — Review changes"},
+		{"shell", Window{Title: "project/src", Cmdline: []string{"/bin/-zsh"}}, "zsh — project/src"},
+		{"duplicate", Window{Title: " zsh ", Cmdline: []string{"zsh"}}, "zsh"},
+		{"empty", Window{Cmdline: []string{"codex"}}, "codex"},
+		{"blank", Window{Title: "\t\n", Cmdline: []string{"codex"}}, "codex"},
+		{"controls", Window{Title: "Fix\tpane\nsearch\x1b", Cmdline: []string{"codex"}}, "codex — Fix pane search"},
+		{"title fallback", Window{Title: "Pane title"}, "Pane title"},
+		{"process fallback", Window{}, "process"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.window.ID = 10
+			rows := Rows([]OSWindow{{Tabs: []Tab{{ID: 1, Windows: []Window{tt.window}}}}}, 0)
+			row := rows[2]
+			if len(strings.Split(row, "\t")) != 3 || strings.Contains(row, "\n") {
+				t.Fatalf("unsafe row: %q", row)
+			}
+			colors := strings.NewReplacer("\x1b[38;2;189;147;249m", "", "\x1b[38;2;153;153;153m", "", "\x1b[0m", "")
+			if got := colors.Replace(row); !strings.HasSuffix(got, " "+tt.want) {
+				t.Fatalf("got %q, want suffix %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLaunchEnv(t *testing.T) {
 	env := launchEnv([]string{"HOME=/home/a", "KITTY_LISTEN_ON=old", "KITTY_WINDOW_ID=2", "KITTY_PID=3", "KITTY_CONFIG_DIRECTORY=old", "KITTY_REPO_STATE=old"}, "/new config", "/new state", "/kitten")
 	for _, want := range []string{"HOME=/home/a", "KITTY_CONFIG_DIRECTORY=/new config/conf", "KITTY_REPO_ROOT=/new config", "KITTY_REPO_STATE=/new state", "KITTY_REPO_KITTEN=/kitten"} {
