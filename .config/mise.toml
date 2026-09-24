@@ -43,4 +43,4 @@ depends = ["build", "lint", "test"]
 
 [tasks.hooks]
 description = "Install repository hooks"
-run = "prek install"
+run = "prek install --config .config/prek.toml"

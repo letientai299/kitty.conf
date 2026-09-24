@@ -1,0 +1,10 @@
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "check"
+name = "build, lint, and test"
+entry = "mise run check"
+language = "system"
+pass_filenames = false
+always_run = true

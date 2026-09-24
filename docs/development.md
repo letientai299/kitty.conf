@@ -1,6 +1,8 @@
 # Development
 
-[mise][mise] pins tool versions and defines all tasks in `mise.toml`.
+[mise][mise] pins tool versions and defines all tasks in `.config/mise.toml`.
+
+Ruff keeps `ruff.toml` at the root for automatic CLI and editor discovery.
 
 ```sh
 mise install
@@ -9,7 +11,8 @@ mise run fmt
 mise run check
 ```
 
-[prek][prek] runs the repository checks before commits. Formatting covers Go,
+[prek][prek] runs the repository checks before commits using `.config/prek.toml`.
+Run hooks manually with `prek run --config .config/prek.toml --all-files`. Formatting covers Go,
 Python, Markdown, and YAML. Linting covers Go and Python.
 The check task builds the executable and runs tests with Go's race detector.
 Python remains only for the Kitty callback and its tests; Kitty supplies its own

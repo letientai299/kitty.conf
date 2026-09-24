@@ -20,6 +20,8 @@ Kitty, `fzf`, `nvim`, and Iosevka Nerd Font Mono must be installed. URL actions
 use the existing `~/.local/bin/browse` helper. [mise][mise] manages development
 tools; it does not install desktop applications or change global configuration.
 
+Licensed under the [MIT license][license].
+
 See the [guide][guide], [architecture][architecture], and
 [development instructions][development].
 
@@ -28,3 +30,4 @@ See the [guide][guide], [architecture][architecture], and
 [guide]: docs/guide.md
 [architecture]: docs/architecture.md
 [development]: docs/development.md
+[license]: LICENSE
