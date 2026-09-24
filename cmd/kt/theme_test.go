@@ -22,4 +22,9 @@ func TestThemeCommand(t *testing.T) {
 	if err := root.Execute(); err == nil {
 		t.Fatal("extra theme arguments accepted")
 	}
+	root = newRoot()
+	root.SetArgs([]string{"theme", "--pane", "--tab"})
+	if err := root.Execute(); err == nil {
+		t.Fatal("multiple scopes accepted")
+	}
 }

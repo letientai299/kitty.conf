@@ -46,6 +46,10 @@ Run these commands inside a `kt` instance:
 kt theme
 # Or select by name:
 kt theme "Carbonfox"
+# Apply a theme only to the current pane, tab, or OS window:
+kt theme --pane "Carbonfox"
+kt theme --tab "Carbonfox"
+kt theme --window "Carbonfox"
 kitten choose-fonts --config-file-name local/machine.conf --reload-in parent
 ```
 
@@ -55,6 +59,16 @@ it the local directory keeps both files together and out of Git. Merely passing
 `--config-file-name local/theme.conf` with the original config directory is
 insufficient: Kitty's theme writer places `current-theme.conf` at the config
 root but writes a relative include. See the [theme writer][theme-writer].
+
+The `--pane`, `--tab`, and `--window` flags use a searchable picker when no
+name is given. Moving the selection updates one temporary Kitty pane beside
+the picker. Press Enter to apply the theme in the chosen scope, or Esc to
+cancel. The preview runs `ls -lah` in interactive zsh and shows its prompt.
+The preview pane closes when the picker exits.
+These flags apply colors at runtime without saving a local theme. `--window`
+targets every pane in the current Kitty OS window. New panes use the saved
+theme, and a config reload may replace temporary colors. Kitty's `Default`
+theme has no color values, so it cannot be applied with a temporary flag.
 
 The [font chooser][fonts] writes only the local machine file. If a managed
 `local/preferences.conf` exists, its effective font size wins; use the future

@@ -62,6 +62,18 @@ Pass a program after -- to run it instead of a shell.`,
 		newRemote(),
 		newTheme(),
 		&cobra.Command{
+			Use:    "theme-preview <pane-id> <name>",
+			Hidden: true,
+			Args:   cobra.ExactArgs(2),
+			RunE: func(_ *cobra.Command, args []string) error {
+				id, err := strconv.Atoi(args[0])
+				if err != nil || id <= 0 {
+					return errors.New("preview pane ID is invalid")
+				}
+				return kitty.PreviewTheme(args[1], kitty.WindowID(id))
+			},
+		},
+		&cobra.Command{
 			Use:   "ls",
 			Short: "Print the instance layout as JSON",
 			Args:  cobra.NoArgs,

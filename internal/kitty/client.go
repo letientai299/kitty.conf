@@ -26,6 +26,7 @@ type Window struct {
 type Tab struct {
 	ID      TabID    `json:"id"`
 	Title   string   `json:"title"`
+	Layout  string   `json:"layout"`
 	Active  bool     `json:"is_active"`
 	Focused bool     `json:"is_focused"`
 	Windows []Window `json:"windows"`
