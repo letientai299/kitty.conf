@@ -31,6 +31,7 @@ state = Path(os.environ["KITTY_REPO_STATE"])
 (state / "other").write_text("unrelated")
 
 tabs = [SimpleNamespace(id=1, os_window_id=1, name="", title="zsh")]
+marker_color = module["marker_color"]
 boss = SimpleNamespace(all_tabs=tabs)
 globals_["get_boss"] = lambda: boss
 globals_["TabAccessor"] = lambda _: SimpleNamespace(
@@ -40,7 +41,7 @@ globals_["TabAccessor"] = lambda _: SimpleNamespace(
 
 def draw(tab_id, title, width, active=True, last=True, palette=None):
     screen = Screen(None, 1, 40)
-    tab = SimpleNamespace(tab_id=tab_id, title=title, is_active=active)
+    tab = SimpleNamespace(tab_id=tab_id, os_window_id=1, title=title, is_active=active)
     if palette is None:
         palette = (
             options.active_tab_foreground,
@@ -55,12 +56,12 @@ def draw(tab_id, title, width, active=True, last=True, palette=None):
     end = draw_tab(data, screen, tab, 0, width, 1, last, None)
     assert end <= width, (title, width, end)
     assert screen.cursor.x == end and screen.cursor.y == 0
+    # boss.all_tabs only knows tab id 1, so tab_index falls back to 0 for
+    # every draw() call here regardless of tab_id.
+    marker = marker_color(0, int(bg))
     for x in range(end):
         cell = screen.line(0).cursor_from(x)
-        if x == 1:
-            assert color_from_int(cell.fg >> 8).contrast(color_from_int(int(bg))) >= 3
-        else:
-            assert cell.fg == as_rgb(int(fg)), (x, cell.fg, fg)
+        assert cell.fg == marker, (x, cell.fg, marker)
         assert cell.bg == as_rgb(int(bg)), (x, cell.bg, bg)
     if last:
         for x in range(end, screen.columns):
@@ -68,29 +69,13 @@ def draw(tab_id, title, width, active=True, last=True, palette=None):
     return screen
 
 
-profile = Screen(None, 1, 40).color_profile
-marker_color = module["marker_color"]
-for index in range(16):
-    profile.set_color(index, 0x88AA00 + index)
-identities = ("project", "another-project", "task", "manual title")
-markers = [marker_color(name, profile, 0) for name in identities]
-assert len(set(markers)) > 1
-for index in range(16):
-    profile.set_color(index, 0x88AA20 + index)
-assert [marker_color(name, profile, 0) for name in identities] == [
-    color + (0x20 << 8) for color in markers
-]
-for index in range(16):
-    profile.set_color(index, 0x5588BB)
-first = marker_color("project", profile, 0)
-assert first == as_rgb(0x5588BB)
-assert marker_color("project", profile, 0) == first
-for index in range(16):
-    profile.set_color(index, 0xBB8855)
-assert marker_color("project", profile, 0) == as_rgb(0xBB8855)
+markers = [marker_color(index, 0) for index in range(6)]
+assert len(set(markers)) == len(markers)
+assert marker_color(3, 0x112233) == marker_color(3, 0x112233)
 for bg in (0, 0x5588BB, 0xFFFFFF):
-    adjusted = marker_color("project", profile, bg)
-    assert color_from_int(adjusted >> 8).contrast(color_from_int(bg)) >= 3
+    for index in range(6):
+        adjusted = marker_color(index, bg)
+        assert color_from_int(adjusted >> 8).contrast(color_from_int(bg)) >= 3
 
 
 deadline = time.monotonic() + 5

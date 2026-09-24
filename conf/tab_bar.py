@@ -1,4 +1,4 @@
-import hashlib
+import colorsys
 import json
 import os
 import select
@@ -117,42 +117,54 @@ def fallback(tab):
     return {"segments": [{"text": text} for text in (" ", title, " ")]}
 
 
-def marker_color(name, profile, background):
-    accents = (1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14)
-    slot = accents[
-        int.from_bytes(hashlib.sha256(name.encode()).digest()) % len(accents)
-    ]
-    color = profile.as_color((slot << 8) | 1)
-    assert color is not None
+# Irrational turn fraction: consecutive indices land ~137.5deg apart on the
+# hue wheel, the same spacing rule sunflower seeds use to avoid crowding.
+GOLDEN_ANGLE = 0.6180339887498949
+
+
+def hsl_color(hue, saturation, lightness):
+    red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
+    return Color(round(red * 255), round(green * 255), round(blue * 255))
+
+
+def marker_color(index, background):
+    # Hue keyed by tab position, not name: neighboring tabs need distant
+    # hues, and a name hash can land two neighbors on the same slice.
+    hue = (index * GOLDEN_ANGLE) % 1
     bg = color_from_int(background)
-    target = max((Color(0, 0, 0), Color(255, 255, 255)), key=bg.contrast)
-    adjusted = color
-    for step in range(1, 21):
-        if adjusted.contrast(bg) >= 3:
-            break
-        amount = step / 20
-        adjusted = Color(
-            round(color.red + (target.red - color.red) * amount),
-            round(color.green + (target.green - color.green) * amount),
-            round(color.blue + (target.blue - color.blue) * amount),
-        )
-    return as_rgb(int(adjusted))
+    dark_bg = bg.contrast(Color(255, 255, 255)) > bg.contrast(Color(0, 0, 0))
+    saturation = 0.65
+    lightness = 0.78 if dark_bg else 0.28
+    step = 0.02 if dark_bg else -0.02
+    color = hsl_color(hue, saturation, lightness)
+    while color.contrast(bg) < 3 and 0.05 < lightness < 0.95:
+        lightness += step
+        color = hsl_color(hue, saturation, lightness)
+    return as_rgb(int(color))
+
+
+def tab_index(boss, tab):
+    for index, sibling in enumerate(
+        t for t in boss.all_tabs if t.os_window_id == tab.os_window_id
+    ):
+        if sibling.id == tab.tab_id:
+            return index
+    return 0
 
 
 def draw_tab(
     draw_data, screen, tab, _before, max_title_length, _index, is_last, _extra_data
 ):
-    worker.refresh(get_boss())
+    boss = get_boss()
+    worker.refresh(boss)
     styles = worker.styles.get(tab.tab_id)
     style = (
         styles["active" if tab.is_active else "inactive"] if styles else fallback(tab)
     )
     # Kitty initializes the cursor with theme colors.
     foreground = screen.cursor.fg
-    segments = [(segment["text"], foreground) for segment in style["segments"]]
-    name = "".join(text for text, _ in segments).strip()
-    marker = marker_color(name, screen.color_profile, screen.cursor.bg >> 8)
-    segments[:0] = [(" ", foreground), ("●", marker)]
+    marker = marker_color(tab_index(boss, tab), screen.cursor.bg >> 8)
+    segments = [(segment["text"], marker) for segment in style["segments"]]
     remaining = min(max_title_length, screen.columns - screen.cursor.x)
     for text, color in segments:
         if remaining <= 0:
