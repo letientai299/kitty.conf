@@ -31,6 +31,12 @@ Pass a program after -- to run it instead of a shell.`,
 	}
 	root.AddCommand(
 		&cobra.Command{
+			Use:   "qt",
+			Short: "Toggle this checkout's quick terminal",
+			Args:  cobra.NoArgs,
+			RunE:  func(*cobra.Command, []string) error { return kitty.QuickTerminal() },
+		},
+		&cobra.Command{
 			Use:   "switch",
 			Short: "Pick a pane with fzf and focus it",
 			Args:  cobra.NoArgs,

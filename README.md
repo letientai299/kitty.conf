@@ -18,7 +18,9 @@ configuration keep their settings.
 
 Kitty, `fzf`, and `nvim` must be installed. The default font is system monospace.
 URL actions use `~/.local/bin/browse` when available, otherwise the OS opener. [mise][mise] manages development
-tools; it does not install desktop applications or change global configuration.
+tools; it does not install desktop applications. On macOS, `mise run qt:register`
+binds Cmd+Esc to this checkout's quick terminal. `mise run qt:unregister` restores
+the previous shortcut. These tasks explicitly change macOS Services settings.
 
 Licensed under the [MIT license][license].
 

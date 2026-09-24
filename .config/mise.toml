@@ -36,6 +36,15 @@ description = "Launch an isolated Kitty instance"
 depends = ["build"]
 run = "./bin/kt"
 
+[tasks."qt:register"]
+description = "Bind Cmd+Esc to this checkout's quick terminal"
+depends = ["build"]
+run = "python scripts/qt-service.py register"
+
+[tasks."qt:unregister"]
+description = "Restore the previous quick terminal shortcut"
+run = "python scripts/qt-service.py unregister"
+
 [tasks.fmt]
 description = "Format source and documentation"
 run = ["gofmt -w cmd internal", "ruff check --fix .", "ruff format .", "shfmt -w scripts/open-url", "prettier --write '**/*.md' '*.yaml'"]

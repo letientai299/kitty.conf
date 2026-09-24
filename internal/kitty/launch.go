@@ -10,35 +10,48 @@ import (
 	"syscall"
 )
 
-func Launch(args []string) error {
-	binary, err := os.Executable()
+func launchPaths() (root, kittyBin, kitten string, err error) {
+	root, err = checkoutRoot()
 	if err != nil {
-		return err
+		return
 	}
-	binary, err = filepath.EvalSymlinks(binary)
-	if err != nil {
-		return err
-	}
-	root := filepath.Dir(filepath.Dir(binary))
-	if _, err = os.Stat(filepath.Join(root, "conf", "kitty.conf")); err != nil {
-		return err
-	}
-	kittyBin, err := exec.LookPath("kitty")
+	kittyBin, err = exec.LookPath("kitty")
 	if err != nil && runtime.GOOS == "darwin" {
 		kittyBin = "/Applications/kitty.app/Contents/MacOS/kitty"
 		_, err = os.Stat(kittyBin)
 	}
 	if err != nil {
-		return err
+		return
 	}
 	real, err := filepath.EvalSymlinks(kittyBin)
 	if err != nil {
-		return err
+		return
 	}
-	kitten := filepath.Join(filepath.Dir(real), "kitten")
+	kitten = filepath.Join(filepath.Dir(real), "kitten")
 	if _, err = os.Stat(kitten); err != nil {
 		kitten, err = exec.LookPath("kitten")
 	}
+	return
+}
+
+func checkoutRoot() (string, error) {
+	binary, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	binary, err = filepath.EvalSymlinks(binary)
+	if err != nil {
+		return "", err
+	}
+	root := filepath.Dir(filepath.Dir(binary))
+	if _, err = os.Stat(filepath.Join(root, "conf", "kitty.conf")); err != nil {
+		return "", err
+	}
+	return root, nil
+}
+
+func Launch(args []string) error {
+	root, kittyBin, kitten, err := launchPaths()
 	if err != nil {
 		return err
 	}

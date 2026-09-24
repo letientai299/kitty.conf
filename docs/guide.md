@@ -42,8 +42,22 @@ The tab bar retains deterministic project/task colors, inactive dimming,
 process/folder fallback, and project caching. Carbonfox supplies the shared
 fallback palette; font and theme choices belong in ignored `conf/local/` files.
 See [configuration][configuration] for local settings and theme selection.
-The quick-access settings remain in `conf/quick-access-terminal.conf` for Kitty's
-quick-access facility; `kt` opens a normal terminal.
+On macOS, `mise run qt:register` builds `kt` and installs the **Kitty Config
+Quick Terminal** Service with Cmd+Esc. The shortcut invokes `kt qt`, which toggles
+this checkout's [quick-access terminal][quick-access]. The panel loads
+`conf/kitty.conf`, `conf/mac.conf`, and `conf/quick-access-terminal.conf`, including
+local font and theme preferences. It keeps a private socket and task directory
+across toggles. Keep this checkout in place while registered.
+
+`mise run qt:unregister` removes the owned Service and restores its previous
+shortcut fields. It preserves later shortcut edits and running shells. Both
+tasks are repeatable and leave the default Kitty configuration untouched.
+Unregister before moving the checkout or registering a different checkout.
+
+The Service appears under System Settings → Keyboard → Keyboard Shortcuts →
+Services → General. Another application's shortcut can intercept Cmd+Esc. After
+editing configuration, quit the quick terminal and invoke it again. Its task
+files are cleared on the next cold start; unregister does not delete them.
 
 `mise run install` links `kt` into `~/.local/bin` and writes zsh completion to
 `~/.local/share/zsh/site-functions/_kt`. `kt --help` lists the commands meant
@@ -69,3 +83,4 @@ requires explicit endpoints; upload payload size comes from `UPLOAD_MB` and
 defaults to 16 MiB. No stress workload runs during normal startup.
 
 [configuration]: configuration.md
+[quick-access]: https://sw.kovidgoyal.net/kitty/kittens/quick-access-terminal/
