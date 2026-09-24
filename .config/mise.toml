@@ -11,9 +11,13 @@ description = "Build Go utilities"
 run = "go build -trimpath -o bin/kt ./cmd/kt"
 
 [tasks.install]
-description = "Install kt into ~/.local/bin"
+description = "Install kt and its zsh completion"
 depends = ["build"]
-run = ['mkdir -p "$HOME/.local/bin"', 'ln -sfn "$PWD/bin/kt" "$HOME/.local/bin/kt"']
+run = [
+  'mkdir -p "$HOME/.local/bin" "$HOME/.local/share/zsh/site-functions"',
+  'ln -sfn "$PWD/bin/kt" "$HOME/.local/bin/kt"',
+  './bin/kt completion zsh > "$HOME/.local/share/zsh/site-functions/_kt"',
+]
 
 [tasks.launch]
 description = "Launch an isolated Kitty instance"

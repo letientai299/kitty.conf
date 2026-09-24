@@ -63,8 +63,8 @@ func TestCurrentTab(t *testing.T) {
 		want TabID
 	}{{20, 2}, {99, 1}} {
 		got, err := CurrentTab(windows, tt.self)
-		if err != nil || got != tt.want {
-			t.Fatalf("got %d, %v", got, err)
+		if err != nil || got.ID != tt.want {
+			t.Fatalf("got %v, %v", got, err)
 		}
 	}
 	if _, err := CurrentTab(nil, 1); err == nil {
@@ -91,6 +91,9 @@ func TestRows(t *testing.T) {
 		if strings.HasPrefix(row, "99\t") {
 			t.Fatal("overlay included")
 		}
+	}
+	if rows := Rows(windows, 10); len(rows) != 5 || !strings.HasPrefix(rows[2], "10\t") {
+		t.Fatalf("shell window excluded: %v", rows)
 	}
 	if !strings.Contains(rows[3], "editor name") {
 		t.Fatal("editor title lost")
@@ -157,7 +160,7 @@ func TestSwitchFocus(t *testing.T) {
 	t.Setenv("KITTY_WINDOW_ID", "99")
 	t.Setenv("TEST_RECORD", filepath.Join(dir, "record"))
 	binary := fakeCommand(t, dir, "kitten", `if [ "$4" = ls ]; then
- printf '%s' '[{"tabs":[{"id":1,"title":"tab","windows":[{"id":10,"cmdline":["zsh"]},{"id":99}]}]}]'
+ printf '%s' '[{"tabs":[{"id":1,"title":"tab","windows":[{"id":10,"cmdline":["zsh"]},{"id":99,"cmdline":["/x/kt","switch"]}]}]}]'
 else
  printf '%s\n' "$@" > "$TEST_RECORD"
 fi
@@ -190,21 +193,39 @@ func TestBroadcastTarget(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("KITTY_REPO_KITTEN", fakeCommand(t, dir, "kitten", `printf '%s ' "$@" >> "$TEST_RECORD"
 printf '\n' >> "$TEST_RECORD"
+if [ "${4-}" = ls ]; then printf '%s' '[{"tabs":[{"id":1,"windows":[{"id":7,"cmdline":["zsh"]},{"id":8,"cmdline":["zsh"]}]},{"id":2,"windows":[{"id":9}]}]}]'; fi
+if [ "${4-}" = launch ]; then echo 20; fi
 `))
 	t.Setenv("TEST_RECORD", filepath.Join(dir, "record"))
 	t.Setenv("KITTY_LISTEN_ON", "unix:/private")
 	t.Setenv("KITTY_WINDOW_ID", "7")
-	if err := Broadcast(); err != nil {
-		t.Fatal(err)
+	for _, tt := range []struct {
+		opts     BroadcastOptions
+		launches int
+		match    string
+	}{
+		{BroadcastOptions{}, 0, "broadcast --match id:7 or id:8"},
+		{BroadcastOptions{New: 2}, 2, "broadcast --match id:7 or id:8 or id:20 or id:20"},
+	} {
+		if err := os.RemoveAll(os.Getenv("TEST_RECORD")); err != nil {
+			t.Fatal(err)
+		}
+		if err := Broadcast(tt.opts); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(os.Getenv("TEST_RECORD"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Count(string(data), "launch --type=window --keep-focus") != tt.launches || !strings.Contains(string(data), tt.match) {
+			t.Fatalf("%+v: %s", tt.opts, data)
+		}
+		if strings.Contains(string(data), "goto-layout") != (tt.launches > 0) {
+			t.Fatalf("layout: %s", data)
+		}
 	}
-	data, err := os.ReadFile(os.Getenv("TEST_RECORD"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Count(string(data), "launch --type=window --keep-focus") != 4 {
-		t.Fatalf("launches: %s", data)
-	}
-	if !strings.Contains(string(data), "goto-layout --match window_id:7 grid") || !strings.Contains(string(data), "focus-window --match id:7") {
-		t.Fatalf("target: %s", data)
+	t.Setenv("KITTY_WINDOW_ID", "9")
+	if err := Broadcast(BroadcastOptions{}); err == nil {
+		t.Fatal("single pane accepted")
 	}
 }

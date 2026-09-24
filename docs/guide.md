@@ -45,7 +45,17 @@ catalog stays in dotfiles; use Kitty's themes kitten to choose another theme.
 The quick-access settings remain in `conf/quick-access-terminal.conf` for Kitty's
 quick-access facility; `kt` opens a normal terminal.
 
-Utility commands run from the launched instance:
+`mise run install` links `kt` into `~/.local/bin` and writes zsh completion to
+`~/.local/share/zsh/site-functions/_kt`. `kt --help` lists the commands meant
+for interactive use; `kt completion` covers other shells.
+
+`kt remote` broadcasts typed input to several panes through Kitty's broadcast
+kitten. It targets every pane in the current tab. `--new N` creates N panes
+first and switches the tab to grid layout; `--pick` selects target panes with
+fzf across the whole instance. It works in any Kitty with remote control
+enabled, including the host instance.
+
+Hidden diagnostics run from the launched instance:
 
 ```sh
 "$KITTY_REPO_ROOT/bin/kt" ls
@@ -57,12 +67,3 @@ Utility commands run from the launched instance:
 Stress commands stop on Ctrl+C. Memory stress grows until stopped. Network stress
 requires explicit endpoints; upload payload size comes from `UPLOAD_MB` and
 defaults to 16 MiB. No stress workload runs during normal startup.
-
-For the old remote-control demo, open a dedicated instance:
-
-```sh
-kt -- kt remote
-```
-
-The demo creates four additional panes, selects grid layout, and starts Kitty's
-broadcast kitten in the first pane.

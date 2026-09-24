@@ -7,24 +7,24 @@ import (
 	"strconv"
 )
 
-func CurrentTab(windows []OSWindow, self WindowID) (TabID, error) {
+func CurrentTab(windows []OSWindow, self WindowID) (*Tab, error) {
 	for _, osw := range windows {
-		for _, tab := range osw.Tabs {
-			for _, w := range tab.Windows {
+		for i := range osw.Tabs {
+			for _, w := range osw.Tabs[i].Windows {
 				if w.ID == self {
-					return tab.ID, nil
+					return &osw.Tabs[i], nil
 				}
 			}
 		}
 	}
 	for _, osw := range windows {
-		for _, tab := range osw.Tabs {
-			if tab.Focused {
-				return tab.ID, nil
+		for i := range osw.Tabs {
+			if osw.Tabs[i].Focused {
+				return &osw.Tabs[i], nil
 			}
 		}
 	}
-	return 0, errors.New("current tab is missing")
+	return nil, errors.New("current tab is missing")
 }
 
 func EditTask() error {
@@ -37,7 +37,7 @@ func EditTask() error {
 	if err != nil {
 		return err
 	}
-	path, err := TaskPath(tab)
+	path, err := TaskPath(tab.ID)
 	if err != nil {
 		return err
 	}

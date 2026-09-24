@@ -1,7 +1,6 @@
 package kitty
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,12 +11,6 @@ import (
 )
 
 func Launch(args []string) error {
-	if len(args) > 0 && args[0] == "--" {
-		args = args[1:]
-	}
-	if len(args) > 0 && len(args[0]) > 0 && args[0][0] == '-' {
-		return errors.New("launcher accepts a program after --")
-	}
 	binary, err := os.Executable()
 	if err != nil {
 		return err

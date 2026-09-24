@@ -6,57 +6,107 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/spf13/cobra"
+
 	"kitty.conf/internal/kitty"
 )
 
-func run(args []string) error {
-	if len(args) == 0 {
-		return kitty.Launch(nil)
+func newRoot() *cobra.Command {
+	root := &cobra.Command{
+		Use:   "kt [-- program [arguments]]",
+		Short: "Isolated Kitty instances and pane tools",
+		Long: `kt launches an isolated Kitty instance in the current directory.
+Pass a program after -- to run it instead of a shell.`,
+		Args:          cobra.ArbitraryArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 && cmd.ArgsLenAtDash() != 0 {
+				return fmt.Errorf("unknown command: %s", args[0])
+			}
+			return kitty.Launch(args)
+		},
 	}
-	switch args[0] {
-	case "--help", "help":
-		fmt.Println("Usage: kt [-- program [arguments]] | <command> [arguments]\nCommands: launch, switch, task, pager, ls, preview, stress, remote")
-		return nil
-	case "--", "launch":
-		return kitty.Launch(args[1:])
-	case "switch":
-		return kitty.Switch()
-	case "task":
-		return kitty.EditTask()
-	case "pager":
-		return kitty.Pager(args[1:])
-	case "stress":
-		return kitty.Stress(args[1:])
-	case "remote":
-		return kitty.Broadcast()
-	case "ls":
-		data, err := kitty.Remote("ls")
-		if err != nil {
-			return err
-		}
-		_, err = os.Stdout.Write(data)
-		return err
-	case "preview":
-		if len(args) != 2 {
-			return errors.New("preview requires a window ID")
-		}
-		id, err := strconv.Atoi(args[1])
-		if err != nil || id <= 0 {
-			return errors.New("window ID is invalid")
-		}
-		data, err := kitty.Remote("get-text", "--match", kitty.Match(kitty.WindowID(id)), "--ansi", "--extent", "screen")
-		if err != nil {
-			return err
-		}
-		_, err = os.Stdout.Write(data)
-		return err
-	default:
-		return fmt.Errorf("unknown command: %s", args[0])
+	root.AddCommand(
+		&cobra.Command{
+			Use:   "switch",
+			Short: "Pick a pane with fzf and focus it",
+			Args:  cobra.NoArgs,
+			RunE:  func(*cobra.Command, []string) error { return kitty.Switch() },
+		},
+		&cobra.Command{
+			Use:   "task",
+			Short: "Edit the current tab's task label",
+			Args:  cobra.NoArgs,
+			RunE:  func(*cobra.Command, []string) error { return kitty.EditTask() },
+		},
+		newRemote(),
+		&cobra.Command{
+			Use:   "ls",
+			Short: "Print the instance layout as JSON",
+			Args:  cobra.NoArgs,
+			RunE: func(*cobra.Command, []string) error {
+				return writeRemote("ls")
+			},
+		},
+		&cobra.Command{
+			Use:    "preview <window-id>",
+			Short:  "Print a window's screen for fzf previews",
+			Hidden: true,
+			Args:   cobra.ExactArgs(1),
+			RunE: func(_ *cobra.Command, args []string) error {
+				id, err := strconv.Atoi(args[0])
+				if err != nil || id <= 0 {
+					return errors.New("window ID is invalid")
+				}
+				return writeRemote("get-text", "--match", kitty.Match(kitty.WindowID(id)), "--ansi", "--extent", "screen")
+			},
+		},
+		&cobra.Command{
+			Use:    "pager [INPUT_LINE_NUMBER CURSOR_LINE CURSOR_COLUMN]",
+			Short:  "Open scrollback from stdin in Neovim",
+			Hidden: true,
+			Args:   cobra.ArbitraryArgs,
+			RunE:   func(_ *cobra.Command, args []string) error { return kitty.Pager(args) },
+		},
+		&cobra.Command{
+			Use:                "stress {cpu [workers] | memory [mb [seconds]] | network {download|upload|both} URL...}",
+			Short:              "Generate load for terminal testing",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			Args:               cobra.ArbitraryArgs,
+			RunE:               func(_ *cobra.Command, args []string) error { return kitty.Stress(args) },
+		},
+	)
+	return root
+}
+
+func newRemote() *cobra.Command {
+	var opts kitty.BroadcastOptions
+	cmd := &cobra.Command{
+		Use:   "remote",
+		Short: "Broadcast typed input to several panes",
+		Long: `Broadcast keyboard input to panes through Kitty's broadcast kitten.
+Targets every pane in the current tab unless --pick selects them.`,
+		Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error { return kitty.Broadcast(opts) },
 	}
+	cmd.Flags().IntVarP(&opts.New, "new", "n", 0, "create this many panes first")
+	cmd.Flags().BoolVarP(&opts.Pick, "pick", "p", false, "choose target panes with fzf")
+	return cmd
+}
+
+func writeRemote(args ...string) error {
+	data, err := kitty.Remote(args...)
+	if err != nil {
+		return err
+	}
+	_, err = os.Stdout.Write(data)
+	return err
 }
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	if err := newRoot().Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

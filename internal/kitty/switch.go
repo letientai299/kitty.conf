@@ -49,6 +49,11 @@ func target(panes []Window) WindowID {
 	return panes[0].ID
 }
 
+// The switcher overlay must not list itself.
+func isOverlay(w *Window) bool {
+	return len(w.Cmdline) > 1 && filepath.Base(w.Cmdline[0]) == "kt"
+}
+
 func Rows(windows []OSWindow, self WindowID) []string {
 	var rows []string
 	roots := make(map[string]string)
@@ -69,7 +74,7 @@ func Rows(windows []OSWindow, self WindowID) []string {
 			var panes []Window
 			project := ""
 			for _, w := range tab.Windows {
-				if w.ID == self {
+				if w.ID == self && isOverlay(&w) {
 					continue
 				}
 				panes = append(panes, w)
@@ -138,14 +143,41 @@ func Switch() error {
 	self, _ := strconv.Atoi(os.Getenv("KITTY_WINDOW_ID"))
 	rows := Rows(windows, WindowID(self))
 	if len(rows) == 0 {
-		return nil
+		return errors.New("no panes found")
 	}
-	binary, err := os.Executable()
-	if err != nil {
+	ids, err := selectRows(rows, "Go to > ", false)
+	if err != nil || len(ids) == 0 {
 		return err
 	}
+	_, err = Remote("focus-window", "--match", Match(ids[0]))
+	return err
+}
+
+func pickPanes(windows []OSWindow, self WindowID) ([]WindowID, error) {
+	var rows []string
+	for _, row := range Rows(windows, self) {
+		if strings.Contains(row, "\tpane\t") {
+			rows = append(rows, row)
+		}
+	}
+	if len(rows) == 0 {
+		return nil, errors.New("no panes found")
+	}
+	return selectRows(rows, "Broadcast to > ", true)
+}
+
+// Cancelling fzf returns no IDs and no error.
+func selectRows(rows []string, prompt string, multi bool) ([]WindowID, error) {
+	binary, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
 	preview := "'" + strings.ReplaceAll(binary, "'", "'\"'\"'") + "' preview {1}"
-	cmd := exec.Command("fzf", "--ansi", "--delimiter", "\t", "--with-nth", "3", "--header", "Select Kitty pane", "--layout=reverse", "--border", "--prompt", "Go to > ", "--preview", preview, "--preview-window", "down,65%,border-top")
+	args := []string{"--ansi", "--delimiter", "\t", "--with-nth", "3", "--header", "Select Kitty pane", "--layout=reverse", "--border", "--prompt", prompt, "--preview", preview, "--preview-window", "down,65%,border-top"}
+	if multi {
+		args = append(args, "--multi", "--header", "Tab marks panes; Enter confirms")
+	}
+	cmd := exec.Command("fzf", args...)
 	cmd.Env = append(os.Environ(), "SHELL=/bin/sh", "FZF_DEFAULT_OPTS=", "FZF_DEFAULT_OPTS_FILE=")
 	cmd.Stdin = strings.NewReader(strings.Join(rows, "\n"))
 	cmd.Stderr = os.Stderr
@@ -153,17 +185,20 @@ func Switch() error {
 	if err != nil {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) && (exit.ExitCode() == 1 || exit.ExitCode() == 130) {
-			return nil
+			return nil, nil
 		}
-		return err
+		return nil, err
 	}
-	selected, _, _ := strings.Cut(strings.TrimSpace(string(output)), "\t")
-	id, err := strconv.Atoi(selected)
-	if err != nil || id <= 0 {
-		return errors.New("selected window ID is invalid")
+	var ids []WindowID
+	for line := range strings.SplitSeq(strings.TrimSpace(string(output)), "\n") {
+		selected, _, _ := strings.Cut(line, "\t")
+		id, err := strconv.Atoi(selected)
+		if err != nil || id <= 0 {
+			return nil, errors.New("selected window ID is invalid")
+		}
+		ids = append(ids, WindowID(id))
 	}
-	_, err = Remote("focus-window", "--match", Match(WindowID(id)))
-	return err
+	return ids, nil
 }
 
 func Clean(text string) string {

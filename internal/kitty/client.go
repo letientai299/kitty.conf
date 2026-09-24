@@ -39,13 +39,16 @@ func Remote(args ...string) ([]byte, error) {
 	if socket == "" {
 		return nil, errors.New("KITTY_LISTEN_ON is missing")
 	}
-	binary := os.Getenv("KITTY_REPO_KITTEN")
-	if binary == "" {
-		binary = "kitten"
-	}
-	cmd := exec.Command(binary, append([]string{"@", "--to", socket}, args...)...)
+	cmd := exec.Command(kittenBinary(), append([]string{"@", "--to", socket}, args...)...)
 	cmd.Stderr = os.Stderr
 	return cmd.Output()
+}
+
+func kittenBinary() string {
+	if binary := os.Getenv("KITTY_REPO_KITTEN"); binary != "" {
+		return binary
+	}
+	return "kitten"
 }
 
 func List() ([]OSWindow, error) {
