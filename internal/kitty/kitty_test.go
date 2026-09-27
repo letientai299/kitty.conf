@@ -187,7 +187,7 @@ func TestRemoteTarget(t *testing.T) {
 
 func TestSwitchFocus(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("MISE_SHIMS_DIR", dir)
 	t.Setenv("KITTY_LISTEN_ON", "unix:/isolated")
 	t.Setenv("KITTY_REPO_STATE", dir)
 	t.Setenv("KITTY_WINDOW_ID", "99")

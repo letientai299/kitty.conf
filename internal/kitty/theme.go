@@ -46,7 +46,7 @@ func Theme(name string, scope ThemeScope) error {
 	if name != "" {
 		args = append(args, "--", name)
 	}
-	cmd := exec.Command(kittenBinary(), args...)
+	cmd := toolCommand(kittenBinary(), args...)
 	cmd.Env = append(os.Environ(), "KITTY_CONFIG_DIRECTORY="+local)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
@@ -96,7 +96,7 @@ func applyNamedTheme(name, local string, match []string) error {
 }
 
 func dumpTheme(name, local string) ([]byte, error) {
-	cmd := exec.Command(kittenBinary(), "themes", "--dump-theme", "--", name)
+	cmd := toolCommand(kittenBinary(), "themes", "--dump-theme", "--", name)
 	cmd.Env = append(os.Environ(), "KITTY_CONFIG_DIRECTORY="+local)
 	cmd.Stderr = os.Stderr
 	data, err := cmd.Output()
@@ -127,7 +127,7 @@ func applyTheme(data []byte, match []string) error {
 }
 
 func pickTheme(local string) (name string, result error) {
-	cmd := exec.Command(kittenBinary(), "__complete__", "json")
+	cmd := toolCommand(kittenBinary(), "__complete__", "json")
 	cmd.Env = append(os.Environ(), "KITTY_CONFIG_DIRECTORY="+local)
 	cmd.Stdin = strings.NewReader(`[["kitten","themes",""]]`)
 	cmd.Stderr = os.Stderr
@@ -169,7 +169,7 @@ func pickTheme(local string) (name string, result error) {
 		return "", err
 	}
 	quoted := "'" + strings.ReplaceAll(binary, "'", "'\"'\"'") + "'"
-	cmd = exec.Command("fzf", "--layout=reverse", "--border", "--prompt", "Theme > ", "--bind", "focus:execute-silent("+quoted+" theme-preview "+strconv.Itoa(int(preview.id))+" {})")
+	cmd = toolCommand("fzf", "--layout=reverse", "--border", "--prompt", "Theme > ", "--bind", "focus:execute-silent("+quoted+" theme-preview "+strconv.Itoa(int(preview.id))+" {})")
 	cmd.Env = append(os.Environ(), "SHELL=/bin/sh", "FZF_DEFAULT_OPTS=", "FZF_DEFAULT_OPTS_FILE=")
 	cmd.Stdin = strings.NewReader(strings.Join(names, "\n") + "\n")
 	cmd.Stderr = os.Stderr
@@ -225,7 +225,7 @@ func startThemePreview() (themePreview, error) {
 	}
 	shell := os.Getenv("SHELL")
 	if filepath.Base(shell) != "zsh" {
-		shell, err = exec.LookPath("zsh")
+		shell, err = toolPath("zsh")
 		if err != nil {
 			return themePreview{}, err
 		}

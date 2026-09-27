@@ -23,7 +23,11 @@ class IntegrationTests(unittest.TestCase):
             (fake / "kitten").touch()
             result = subprocess.run(
                 [str(ROOT / "bin/kt")],
-                env=dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}"),
+                env=dict(
+                    os.environ,
+                    MISE_SHIMS_DIR=str(fake),
+                    PATH=f"{fake}:{os.environ['PATH']}",
+                ),
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -49,6 +53,7 @@ class IntegrationTests(unittest.TestCase):
             (fake / "kitten").write_text("unused")
             env = dict(
                 os.environ,
+                MISE_SHIMS_DIR=str(fake),
                 PATH=f"{fake}:{os.environ['PATH']}",
                 KITTY_CONFIG_DIRECTORY="/old/config",
                 KITTY_LISTEN_ON="unix:/old/socket",
@@ -109,6 +114,7 @@ class IntegrationTests(unittest.TestCase):
                 [str(ROOT / "bin/kt")],
                 env=dict(
                     os.environ,
+                    MISE_SHIMS_DIR=str(fake),
                     PATH=f"{fake}:{os.environ['PATH']}",
                     TEST_RECORD=str(record),
                 ),

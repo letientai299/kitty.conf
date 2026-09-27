@@ -16,7 +16,7 @@ func launchPaths() (root, kittyBin, kitten string, err error) {
 	if err != nil {
 		return
 	}
-	kittyBin, err = exec.LookPath("kitty")
+	kittyBin, err = toolPath("kitty")
 	if err != nil && runtime.GOOS == "darwin" {
 		kittyBin = "/Applications/kitty.app/Contents/MacOS/kitty"
 		_, err = os.Stat(kittyBin)
@@ -30,7 +30,7 @@ func launchPaths() (root, kittyBin, kitten string, err error) {
 	}
 	kitten = filepath.Join(filepath.Dir(real), "kitten")
 	if _, err = os.Stat(kitten); err != nil {
-		kitten, err = exec.LookPath("kitten")
+		kitten, err = toolPath("kitten")
 	}
 	return
 }
@@ -52,6 +52,9 @@ func checkoutRoot() (string, error) {
 }
 
 func Launch(args []string) error {
+	if _, _, _, err := launchPaths(); err != nil {
+		return err
+	}
 	binary, err := os.Executable()
 	if err != nil {
 		return err

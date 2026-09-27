@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"os/exec"
 	"strconv"
 )
 
@@ -40,7 +39,7 @@ func Remote(args ...string) ([]byte, error) {
 	if socket == "" {
 		return nil, errors.New("KITTY_LISTEN_ON is missing")
 	}
-	cmd := exec.Command(kittenBinary(), append([]string{"@", "--to", socket}, args...)...)
+	cmd := toolCommand(kittenBinary(), append([]string{"@", "--to", socket}, args...)...)
 	cmd.Stderr = os.Stderr
 	return cmd.Output()
 }

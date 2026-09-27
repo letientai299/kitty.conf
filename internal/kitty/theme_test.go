@@ -136,6 +136,7 @@ else
 fi
 `))
 	fakeCommand(t, root, "fzf", "cat >/dev/null\nexit 130\n")
+	t.Setenv("MISE_SHIMS_DIR", t.TempDir())
 	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
 	if err := Theme("", ThemePane); err != nil {
 		t.Fatal(err)
@@ -173,6 +174,7 @@ func TestTemporaryThemePicker(t *testing.T) {
 	t.Setenv("KITTY_LISTEN_ON", "unix:/kitty")
 	t.Setenv("KITTY_WINDOW_ID", "7")
 	t.Setenv("TEST_RECORD", record)
+	t.Setenv("MISE_SHIMS_DIR", t.TempDir())
 	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("KITTY_REPO_KITTEN", fakeCommand(t, root, "kitten", `printf '%s\n' "$@" >> "$TEST_RECORD"
 if [ "$1" = __complete__ ]; then
@@ -229,6 +231,7 @@ func TestTemporaryThemePreviewCleanupStack(t *testing.T) {
 	t.Setenv("KITTY_LISTEN_ON", "unix:/kitty")
 	t.Setenv("KITTY_WINDOW_ID", "7")
 	t.Setenv("TEST_RECORD", record)
+	t.Setenv("MISE_SHIMS_DIR", t.TempDir())
 	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("KITTY_REPO_KITTEN", fakeCommand(t, root, "kitten", `printf '%s\n' "$@" >> "$TEST_RECORD"
 case "${4:-}" in

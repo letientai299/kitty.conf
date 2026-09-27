@@ -3,7 +3,6 @@ package kitty
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 )
@@ -66,7 +65,7 @@ func Broadcast(opts BroadcastOptions) error {
 	for i, id := range targets {
 		matches[i] = Match(id)
 	}
-	cmd := exec.Command(kittenBinary(), "broadcast", "--match", strings.Join(matches, " or "))
+	cmd := toolCommand(kittenBinary(), "broadcast", "--match", strings.Join(matches, " or "))
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
 }

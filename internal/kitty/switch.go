@@ -179,7 +179,7 @@ func selectRows(rows []string, prompt string, multi bool) ([]WindowID, error) {
 	if multi {
 		args = append(args, "--multi", "--header", "Tab marks panes; Enter confirms")
 	}
-	cmd := exec.Command("fzf", args...)
+	cmd := toolCommand("fzf", args...)
 	cmd.Env = append(os.Environ(), "SHELL=/bin/sh", "FZF_DEFAULT_OPTS=", "FZF_DEFAULT_OPTS_FILE=")
 	cmd.Stdin = strings.NewReader(strings.Join(rows, "\n"))
 	cmd.Stderr = os.Stderr

@@ -3,7 +3,6 @@ package kitty
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"strconv"
 )
 
@@ -41,7 +40,7 @@ func EditTask() error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("nvim", path)
+	cmd := toolCommand("nvim", path)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
 }

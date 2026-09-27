@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strconv"
 )
 
@@ -42,7 +41,7 @@ func Pager(args []string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("nvim",
+	cmd := toolCommand("nvim",
 		"-c", "set nonumber laststatus=0 colorcolumn=0 tw=10000",
 		"-c", "autocmd TermEnter * stopinsert",
 		"-c", "autocmd TermClose * "+cursor,
