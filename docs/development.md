@@ -16,12 +16,12 @@ mise run fmt
 mise run check
 ```
 
-[prek][prek] runs the repository checks before commits using `.config/prek.toml`.
-Run hooks manually with `prek run --config .config/prek.toml --all-files`. Formatting covers Go,
-Python, Markdown, and YAML. Linting covers Go, Python, ty type checks, and shell scripts.
-The check task builds the executable and runs tests with Go's race detector.
-Python remains only for the Kitty callback and its tests; Kitty supplies its own
-Python runtime in production.
+[prek][prek] runs the repository checks before commits using `prek.toml`. Run
+hooks manually with `prek run --all-files`. Formatting covers Go, Python,
+Markdown, and YAML. Linting covers Go, Python, ty type checks, and shell
+scripts. The check task builds the executable and runs tests with Go's race
+detector. Python remains only for the Kitty callback and its tests; Kitty
+supplies its own Python runtime in production.
 
 Tests exercise project detection, instance task isolation, switcher rows,
 launcher environment isolation, tab-bar labels, and the worker protocol. The
