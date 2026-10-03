@@ -1,4 +1,3 @@
-import colorsys
 import json
 import os
 import select
@@ -6,10 +5,10 @@ import subprocess
 import sys
 import time
 import unicodedata
+from functools import lru_cache
 
 import kitty.tab_bar as kitty_tab_bar
-from kitty.fast_data_types import Color, get_boss, truncate_point_for_length, wcswidth
-from kitty.rgb import color_from_int
+from kitty.fast_data_types import get_boss, truncate_point_for_length, wcswidth
 from kitty.tab_bar import TabAccessor, as_rgb
 
 PROTOCOL = 1
@@ -117,39 +116,52 @@ def fallback(tab):
     return {"segments": [{"text": text} for text in (" ", title, " ")]}
 
 
-# Irrational turn fraction: consecutive indices land ~137.5deg apart on the
-# hue wheel, the same spacing rule sunflower seeds use to avoid crowding.
-GOLDEN_ANGLE = 0.6180339887498949
+def contrast_ratio(foreground: int, background: int) -> float:
+    def luminance(rgb: int) -> float:
+        channels = [((rgb >> shift) & 255) / 255 for shift in (16, 8, 0)]
+        linear = [
+            value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+            for value in channels
+        ]
+        return sum(
+            value * weight for value, weight in zip(linear, (0.2126, 0.7152, 0.0722))
+        )
+
+    light, dark = sorted((luminance(foreground), luminance(background)), reverse=True)
+    return (light + 0.05) / (dark + 0.05)
 
 
-def hsl_color(hue, saturation, lightness):
-    red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
-    return Color(round(red * 255), round(green * 255), round(blue * 255))
+def blend_colors(first: int, second: int, amount: float) -> int:
+    return sum(
+        round(
+            ((first >> shift) & 255) * (1 - amount) + ((second >> shift) & 255) * amount
+        )
+        << shift
+        for shift in (16, 8, 0)
+    )
 
 
-def marker_color(index, background):
-    # Hue keyed by tab position, not name: neighboring tabs need distant
-    # hues, and a name hash can land two neighbors on the same slice.
-    hue = (index * GOLDEN_ANGLE) % 1
-    bg = color_from_int(background)
-    dark_bg = bg.contrast(Color(255, 255, 255)) > bg.contrast(Color(0, 0, 0))
-    saturation = 0.65
-    lightness = 0.78 if dark_bg else 0.28
-    step = 0.02 if dark_bg else -0.02
-    color = hsl_color(hue, saturation, lightness)
-    while color.contrast(bg) < 3 and 0.05 < lightness < 0.95:
-        lightness += step
-        color = hsl_color(hue, saturation, lightness)
-    return as_rgb(int(color))
-
-
-def tab_index(boss, tab):
-    for index, sibling in enumerate(
-        t for t in boss.all_tabs if t.os_window_id == tab.os_window_id
-    ):
-        if sibling.id == tab.tab_id:
-            return index
-    return 0
+@lru_cache(maxsize=128)
+def tab_colors(active: bool, accent: int, base: int, inactive: int) -> tuple[int, int]:
+    if not active:
+        background = blend_colors(0, inactive, 0.75)
+        while contrast_ratio(0xFFFFFF, background) < 4.5:
+            background = blend_colors(0, background, 0.9)
+        return 0xFFFFFF, background
+    background = blend_colors(base, accent, 0.15)
+    channels = [(accent >> shift) & 255 for shift in (16, 8, 0)]
+    scale = 255 / max(1, max(channels))
+    vivid = sum(
+        round(channel * scale) << shift for channel, shift in zip(channels, (16, 8, 0))
+    )
+    target = max((0, 0xFFFFFF), key=lambda value: contrast_ratio(value, background))
+    contrast = min(7.0, contrast_ratio(target, background))
+    foreground = vivid
+    for step in range(1, 21):
+        if contrast_ratio(foreground, background) >= contrast:
+            break
+        foreground = blend_colors(vivid, target, step / 20)
+    return foreground, background
 
 
 def draw_tab(
@@ -161,21 +173,35 @@ def draw_tab(
     style = (
         styles["active" if tab.is_active else "inactive"] if styles else fallback(tab)
     )
-    # Kitty initializes the cursor with theme colors.
-    foreground = screen.cursor.fg
-    marker = marker_color(tab_index(boss, tab), screen.cursor.bg >> 8)
-    segments = [(segment["text"], marker) for segment in style["segments"]]
-    remaining = min(max_title_length, screen.columns - screen.cursor.x)
-    for text, color in segments:
+    foreground, background = screen.cursor.fg, screen.cursor.bg
+    accent = screen.color_profile.as_color((4 << 8) | 1)
+    accent_rgb = int(accent) if accent is not None else foreground >> 8
+    base = int(draw_data.default_bg)
+    label_rgb, rgb = tab_colors(tab.is_active, accent_rgb, base, background >> 8)
+    screen.cursor.fg = as_rgb(label_rgb)
+    screen.cursor.bg = as_rgb(rgb)
+    screen.cursor.bold, screen.cursor.italic = tab.is_active, False
+    remaining = max(0, min(max_title_length, screen.columns - screen.cursor.x))
+    slants = remaining >= 2
+    left, right = "", ""
+    if slants:
+        screen.cursor.fg = as_rgb(base)
+        screen.draw(left)
+        screen.cursor.fg = as_rgb(label_rgb)
+        remaining -= 2
+    for segment in style["segments"]:
         if remaining <= 0:
             break
+        text = segment["text"]
         if wcswidth(text) > remaining:
             text = text[: truncate_point_for_length(text, remaining - 1)] + "…"
-        screen.cursor.fg = color
         screen.draw(text)
         remaining -= wcswidth(text)
+    if slants:
+        screen.cursor.fg = as_rgb(base)
+        screen.draw(right)
     end = screen.cursor.x
-    screen.cursor.fg = foreground
+    screen.cursor.fg, screen.cursor.bg = foreground, background
     if is_last:
         screen.cursor.bg = as_rgb(int(draw_data.default_bg))
         screen.draw(" " * max(0, screen.columns - end))

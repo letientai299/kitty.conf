@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 from kitty.config import load_config
 from kitty.fast_data_types import Screen
-from kitty.rgb import color_from_int
 from kitty.tab_bar import as_rgb
 
 root = Path(os.environ["KITTY_CONFIG_DIRECTORY"])
@@ -22,6 +21,12 @@ assert options.macos_option_as_alt
 
 module = runpy.run_path(str(root / "tab_bar.py"))
 draw_tab = module["draw_tab"]
+contrast_ratio = module["contrast_ratio"]
+assert contrast_ratio(0, 0xFFFFFF) == 21
+assert contrast_ratio(0xFFFFFF, 0) == 21
+assert contrast_ratio(0x777777, 0x777777) == 1
+assert abs(contrast_ratio(0x777777, 0xFFFFFF) - 4.478) < 0.001
+assert abs(contrast_ratio(0xD2E0FF, 0x3A3C49) - 8.239) < 0.01
 globals_ = draw_tab.__globals__
 worker = module["Worker"]()
 globals_["worker"] = worker
@@ -31,7 +36,6 @@ state = Path(os.environ["KITTY_REPO_STATE"])
 (state / "other").write_text("unrelated")
 
 tabs = [SimpleNamespace(id=1, os_window_id=1, name="", title="zsh")]
-marker_color = module["marker_color"]
 boss = SimpleNamespace(all_tabs=tabs)
 globals_["get_boss"] = lambda: boss
 globals_["TabAccessor"] = lambda _: SimpleNamespace(
@@ -39,8 +43,9 @@ globals_["TabAccessor"] = lambda _: SimpleNamespace(
 )
 
 
-def draw(tab_id, title, width, active=True, last=True, palette=None):
+def draw(tab_id, title, width, active=True, last=True, palette=None, offset=0):
     screen = Screen(None, 1, 40)
+    screen.cursor.x = offset
     tab = SimpleNamespace(tab_id=tab_id, os_window_id=1, title=title, is_active=active)
     if palette is None:
         palette = (
@@ -49,33 +54,44 @@ def draw(tab_id, title, width, active=True, last=True, palette=None):
             options.inactive_tab_foreground,
             options.inactive_tab_background,
             options.tab_bar_background or options.background,
+            options.color_table[4],
         )
+    screen.color_profile.set_color(4, int(palette[5]))
     fg, bg = palette[:2] if active else palette[2:4]
     screen.cursor.fg, screen.cursor.bg = as_rgb(int(fg)), as_rgb(int(bg))
-    data = SimpleNamespace(default_bg=palette[4])
-    end = draw_tab(data, screen, tab, 0, width, 1, last, None)
-    assert end <= width, (title, width, end)
+    data = SimpleNamespace(default_bg=palette[4], tab_bar_edge="bottom")
+    end = draw_tab(data, screen, tab, offset, width, 1, last, None)
+    available_width = min(width, screen.columns - offset)
+    assert offset <= end <= offset + available_width, (title, width, offset, end)
     assert screen.cursor.x == end and screen.cursor.y == 0
-    # boss.all_tabs only knows tab id 1, so tab_index falls back to 0 for
-    # every draw() call here regardless of tab_id.
-    marker = marker_color(0, int(bg))
-    for x in range(end):
+    base = int(data.default_bg)
+    for x in range(offset, end):
         cell = screen.line(0).cursor_from(x)
-        assert cell.fg == marker, (x, cell.fg, marker)
-        assert cell.bg == as_rgb(int(bg)), (x, cell.bg, bg)
+        edge = available_width >= 2 and x in (offset, end - 1)
+        if edge:
+            assert cell.fg == as_rgb(base)
+        elif active:
+            available = max(
+                contrast_ratio(value, cell.bg >> 8) for value in (0, 0xFFFFFF)
+            )
+            assert contrast_ratio(cell.fg >> 8, cell.bg >> 8) >= min(7.0, available)
+            assert cell.bold and not cell.italic
+        else:
+            assert cell.fg == as_rgb(0xFFFFFF)
+            assert contrast_ratio(cell.fg >> 8, cell.bg >> 8) >= 4.5
+            assert not cell.bold and not cell.italic
+        if not active:
+            assert all(
+                ((cell.bg >> (shift + 8)) & 255) <= ((int(bg) >> shift) & 255)
+                for shift in (16, 8, 0)
+            )
+    if available_width >= 2:
+        text = str(screen.line(0)).rstrip()
+        assert text[offset:].startswith("") and text.endswith(""), text
     if last:
         for x in range(end, screen.columns):
             assert screen.line(0).cursor_from(x).bg == as_rgb(int(data.default_bg))
     return screen
-
-
-markers = [marker_color(index, 0) for index in range(6)]
-assert len(set(markers)) == len(markers)
-assert marker_color(3, 0x112233) == marker_color(3, 0x112233)
-for bg in (0, 0x5588BB, 0xFFFFFF):
-    for index in range(6):
-        adjusted = marker_color(index, bg)
-        assert color_from_int(adjusted >> 8).contrast(color_from_int(bg)) >= 3
 
 
 deadline = time.monotonic() + 5
@@ -88,8 +104,9 @@ assert not (state / "task-2").exists()
 assert (state / "other").exists()
 
 for palette in (
-    (0xEEEEEE, 0x223344, 0xAAAAAA, 0x112233, 0x101010),
-    (0x111111, 0xCCDDEE, 0x333333, 0xEEEEEE, 0xFFFFFF),
+    (0xCDDBF9, 0xA8B6D0, 0xFFFFFF, 0x1A1A22, 0x20202A, 0xCDDBF9),
+    (0xEEEEEE, 0x223344, 0xAAAAAA, 0x112233, 0x101010, 0x46BDFF),
+    (0x111111, 0xCCDDEE, 0x333333, 0xEEEEEE, 0xFFFFFF, 0x224488),
 ):
     for active in (False, True):
         for tab_id in (1, 2):
@@ -99,6 +116,15 @@ for title in ("任务" * 40, "ascii" * 40, "é" * 40, "bad\n\x1btitle"):
     for width in (0, 1, 2, 3, 8, 20):
         draw(1, title, width)
         draw(2, title, width, active=False, last=False)
+        for offset in (33, 39):
+            draw(2, title, width, active=False, offset=offset)
+            draw(1, title, width, offset=offset)
+
+dark_palette = (0xCDDBF9, 0xA8B6D0, 0xFFFFFF, 0x1A1A22, 0x20202A, 0xCDDBF9)
+bright = draw(2, "contrast", 20, palette=dark_palette)
+assert bright.line(0).cursor_from(2).fg >> 8 == 0xD2E0FF
+changed = draw(2, "contrast", 20, palette=dark_palette[:5] + (0xFF6600,))
+assert changed.line(0).cursor_from(2).fg != bright.line(0).cursor_from(2).fg
 
 worker.stop()
 assert worker.proc is None
