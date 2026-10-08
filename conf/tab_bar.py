@@ -148,7 +148,7 @@ def tab_colors(active: bool, accent: int, base: int, inactive: int) -> tuple[int
         while contrast_ratio(0xFFFFFF, background) < 4.5:
             background = blend_colors(0, background, 0.9)
         return 0xFFFFFF, background
-    background = blend_colors(base, accent, 0.15)
+    background = accent  # blend_colors(base, accent, 1.45)
     channels = [(accent >> shift) & 255 for shift in (16, 8, 0)]
     scale = 255 / max(1, max(channels))
     vivid = sum(
